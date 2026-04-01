@@ -201,6 +201,20 @@ function renderInline(markdown) {
 }
 
 function renderMarkdown(markdown) {
+  function parseTableRow(line) {
+    const trimmed = line.trim();
+    let content = trimmed;
+    if (content.startsWith("|")) content = content.slice(1);
+    if (content.endsWith("|")) content = content.slice(0, -1);
+    return content.split("|").map((cell) => cell.trim());
+  }
+
+  function isTableSeparator(line) {
+    const cells = parseTableRow(line);
+    if (cells.length === 0) return false;
+    return cells.every((cell) => /^:?-{3,}:?$/.test(cell.replace(/\s+/g, "")));
+  }
+
   const lines = markdown.replace(/\r\n/g, "\n").split("\n");
   const out = [];
   let i = 0;
@@ -223,6 +237,36 @@ function renderMarkdown(markdown) {
       }
       if (i < lines.length) i += 1;
       out.push(`<pre><code class="language-${escapeHtml(lang)}">${escapeHtml(code.join("\n"))}</code></pre>`);
+      continue;
+    }
+
+    // GFM table support: header row + separator row + data rows
+    if (
+      line.includes("|") &&
+      i + 1 < lines.length &&
+      isTableSeparator(lines[i + 1])
+    ) {
+      const headerCells = parseTableRow(line).map((cell) => renderInline(cell));
+      i += 2; // Skip header and separator
+
+      const bodyRows = [];
+      while (
+        i < lines.length &&
+        lines[i].trim() &&
+        lines[i].includes("|") &&
+        !/^(#{1,6})\s+/.test(lines[i]) &&
+        !/^```/.test(lines[i].trim())
+      ) {
+        const rowCells = parseTableRow(lines[i]).map((cell) => renderInline(cell));
+        bodyRows.push(rowCells);
+        i += 1;
+      }
+
+      const thead = `<thead><tr>${headerCells.map((cell) => `<th>${cell}</th>`).join("")}</tr></thead>`;
+      const tbody = `<tbody>${bodyRows
+        .map((row) => `<tr>${row.map((cell) => `<td>${cell}</td>`).join("")}</tr>`)
+        .join("")}</tbody>`;
+      out.push(`<table>${thead}${tbody}</table>`);
       continue;
     }
 
@@ -570,6 +614,36 @@ function pageTemplate({ title, description, content, isPost = false }) {
       background: transparent;
       color: inherit;
       padding: 0;
+    }
+    .article table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 1rem 0;
+      font-size: 0.95rem;
+      font-family: "IBM Plex Sans", "Segoe UI", Inter, Arial, sans-serif;
+      background: #0c130d;
+      border: 1px solid #273227;
+      border-radius: 8px;
+      overflow: hidden;
+      display: block;
+      overflow-x: auto;
+    }
+    .article thead tr {
+      background: rgba(118, 185, 0, 0.12);
+    }
+    .article th,
+    .article td {
+      border: 1px solid #273227;
+      padding: 0.48rem 0.58rem;
+      text-align: left;
+      white-space: nowrap;
+    }
+    .article th {
+      color: #e8f6d8;
+      font-weight: 700;
+    }
+    .article td {
+      color: #dde4dd;
     }
     .article hr { border: 0; border-top: 1px solid #273227; margin: 1.6rem 0; }
     .article img {
