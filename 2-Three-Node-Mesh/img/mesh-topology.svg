@@ -1,0 +1,47 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="920" height="560" viewBox="0 0 920 560" role="img" aria-labelledby="title desc">
+  <title id="title">3-node DGX Spark Mesh Topology</title>
+  <desc id="desc">Three DGX Spark nodes connected in a triangle. Spark 1 Port 0 to Spark 2 Port 1, Spark 2 Port 0 to Spark 3 Port 1, Spark 3 Port 0 to Spark 1 Port 1.</desc>
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#0f1410"/>
+      <stop offset="100%" stop-color="#0a0f0a"/>
+    </linearGradient>
+    <style>
+      .node { fill: #121a13; stroke: #76b900; stroke-width: 2; }
+      .edge { stroke: #8fda4a; stroke-width: 3; }
+      .title { fill: #edf3ed; font: 700 20px 'IBM Plex Sans', Arial, sans-serif; }
+      .subtitle { fill: #a7b5a7; font: 500 14px 'IBM Plex Sans', Arial, sans-serif; }
+      .label { fill: #f4fff4; font: 700 22px 'IBM Plex Sans', Arial, sans-serif; }
+      .port { fill: #c9d7c9; font: 500 14px 'IBM Plex Sans', Arial, sans-serif; }
+      .edgeLabel { fill: #dff0d6; font: 600 13px 'IBM Plex Sans', Arial, sans-serif; }
+    </style>
+  </defs>
+
+  <rect x="0" y="0" width="920" height="560" rx="16" fill="url(#bg)"/>
+
+  <text class="title" x="40" y="44">3-Node DGX Spark Mesh (No Switch)</text>
+  <text class="subtitle" x="40" y="68">Cross-connect pattern: Port 0 ↔ Port 1 between peers</text>
+
+  <line class="edge" x1="460" y1="150" x2="230" y2="390"/>
+  <line class="edge" x1="230" y1="390" x2="690" y2="390"/>
+  <line class="edge" x1="690" y1="390" x2="460" y2="150"/>
+
+  <text class="edgeLabel" x="300" y="255">S1 Port 0 ↔ S2 Port 1</text>
+  <text class="edgeLabel" x="425" y="375">S2 Port 0 ↔ S3 Port 1</text>
+  <text class="edgeLabel" x="590" y="255">S3 Port 0 ↔ S1 Port 1</text>
+
+  <rect class="node" x="350" y="90" width="220" height="120" rx="14"/>
+  <text class="label" x="460" y="134" text-anchor="middle">Spark 1</text>
+  <text class="port" x="380" y="168">Port 0</text>
+  <text class="port" x="500" y="168">Port 1</text>
+
+  <rect class="node" x="120" y="330" width="220" height="120" rx="14"/>
+  <text class="label" x="230" y="374" text-anchor="middle">Spark 2</text>
+  <text class="port" x="150" y="408">Port 0</text>
+  <text class="port" x="270" y="408">Port 1</text>
+
+  <rect class="node" x="580" y="330" width="220" height="120" rx="14"/>
+  <text class="label" x="690" y="374" text-anchor="middle">Spark 3</text>
+  <text class="port" x="610" y="408">Port 0</text>
+  <text class="port" x="730" y="408">Port 1</text>
+</svg>
