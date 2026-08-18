@@ -107,7 +107,7 @@ bandwidth-bound box this dominates single-stream decode — every token streams 
 GB/s the 16.7 GB quant has a ceiling near 16 t/s where the FP8 checkpoint sits near 9. llama.cpp leading single-stream
 is arithmetic, not engine quality, and the original post is careful about this too.
 
-**Speculation on for exactly one of them.** NEXTN roughly doubles SGLang's single-stream decode and it is the
+**Speculative Decoding on for exactly one of them.** NEXTN roughly doubles SGLang's single-stream decode and it is the
 configuration you would actually serve, so it ships on. That makes the SGLang column not-comparable to the vLLM one as
 shipped; the recipe README documents the four lines to delete for the strictly matched run.
 
@@ -132,13 +132,12 @@ you fail either the deep cells or the concurrent ones.
 The original post never hit this and could not have, because its llama.cpp leg was measured with `llama-bench`, which
 has no concurrency dimension at all. That makes this the one number in the set that is derived rather than transcribed,
 and correspondingly the one most likely to be wrong. Before pointing `--arena` at the llama.cpp recipe, redo it — the
-Spark Arena profile reaches deeper, and at ten slots that is roughly 1.3M total context, which will not fit.
+Spark Arena profile reaches deeper, and at ten slots that is roughly 1.3M total context.
 
 The KV bill is affordable for an architectural reason the original post explains well: only 16 of Qwen3.8-27B's 64
 layers are full attention, the rest are Gated DeltaNet with constant-size state, so KV grows at roughly a quarter of the
 rate a conventional 64-layer model's would. That same property is why decode is nearly flat in context depth — 8.2 t/s
-at depth 0 against 7.9 t/s at 32K on vLLM FP8 — which is the finding I would most want re-measured across all three
-engines on one ladder.
+at depth 0 against 7.9 t/s at 32K on vLLM FP8.
 
 ## Contributing Benchmarks
 
