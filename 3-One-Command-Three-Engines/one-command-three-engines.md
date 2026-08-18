@@ -159,10 +159,13 @@ Using `--arena` means that it does the standardized benchmark and uploads the re
 To sign up for a free account, goto: https://spark-arena.com/join. By the way, we require accounts because the Internet
 isn't really the safest place. We tried open submissions, and it didn't work out so great... So we require accounts to keep the leaderboard honest and useful.
 
+Also, quick note: these benchmarks can take time depending on the model, benchmark, and hardware. Be prepared for that. To try to make
+that a little better, sparkrun decomposes the benchmark work into smaller blocks to enable resumable runs, so if you have to stop or if you 
+have a hardware failure, you can resume the benchmark from where it left off.
+
 ## Links
 
 - Original post: [Running Qwen3.8-27B on DGX Spark](https://blog.kubesimplify.com/qwen3-8-27b-on-dgx-spark) by Saiyam Pathak
 - Recipes: [`recipes/blog-qwen3.8-27b/dbsci/`](https://github.com/spark-arena/community-recipe-registry/tree/main/recipes/blog-qwen3.8-27b/dbsci)
-- [sparkrun](https://sparkrun.dev) · [Spark Arena](https://spark-arena.com) · [llama-benchy](https://pypi.org/project/llama-benchy/)
--
-Model: [Qwen/Qwen3.8-27B-FP8](https://huggingface.co/Qwen/Qwen3.8-27B-FP8) · [unsloth/Qwen3.8-27B-GGUF](https://huggingface.co/unsloth/Qwen3.8-27B-GGUF)
+- [sparkrun](https://sparkrun.dev) 
+- [Spark Arena](https://spark-arena.com)
