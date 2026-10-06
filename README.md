@@ -16,17 +16,33 @@ This directory contains markdown posts and a static site generator for a Spark A
 From repo root:
 
 ```bash
-npm run blog:build
+node scripts/build.mjs
 ```
 
 This generates:
 
-- `blog/dist/index.html`
-- `blog/dist/posts/<slug>/index.html`
+- `dist/index.html`
+- `dist/posts/<slug>/index.html`
+
+## Local Preview
+
+Build first, then run the Worker and its static assets locally:
+
+```bash
+node scripts/build.mjs
+npx wrangler dev --ip 127.0.0.1 --port 8791
+```
+
+Open http://127.0.0.1:8791/. Rebuild after editing Markdown or the template;
+Wrangler serves the updated generated assets. Stop the preview with Ctrl+C.
+
+Run the Markdown renderer checks with `node --test scripts/build.test.mjs`.
+Posts may set a plain-text `description` in frontmatter for their home-page
+excerpt. Diagrams are static SVG assets in each post's `img/` directory.
 
 ## Deploy to Cloudflare Worker
 
-From `blog/`:
+From the repository root:
 
 ```bash
 npx wrangler deploy

@@ -3,156 +3,285 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Introducing Spark Arena: A Community-Driven LLM Performance Leaderboard | Spark Arena Blog</title>
-  <meta name="description" content="Over the past weeks, I&#39;ve been collaborating with @eugr on a challenge we keep seeing across DGX Spark threads. It&#39;s not that people aren&#39;t experimenting—they absolutely are. Th..." />
+  <title>Introducing Spark Arena: A Community-Driven LLM Performance Leaderboard | Spark Arena Tech Blog</title>
+  <meta name="description" content="Over the past weeks, I&#39;ve been collaborating with @eugr on a challenge we keep seeing across DGX Spark threads. It&#39;s not that people aren&#39;t experimenting—they absolutely are. The real iss..." />
   <style>
     :root {
-      --bg: #080c08;
-      --bg-alt: #0f1510;
-      --card: #121a13;
-      --text: #edf3ed;
-      --muted: #a7b5a7;
-      --line: #263226;
+      --bg: #050606;
+      --paper: #0f1410;
+      --text: #f4f7f4;
+      --muted: #95a295;
+      --line: #2a332a;
       --brand: #76b900;
-      --brand-soft: #92d11d;
-      --link: #8fda4a;
-      --shadow: rgba(118, 185, 0, 0.18);
+      --brand-dark: #5f9700;
     }
     * { box-sizing: border-box; }
     body {
       margin: 0;
+      font-family: Charter, "Bitstream Charter", "Sitka Text", Cambria, serif;
       color: var(--text);
       background:
-        radial-gradient(1100px 500px at -10% -20%, rgba(118,185,0,0.16), transparent 50%),
-        radial-gradient(900px 400px at 110% 0%, rgba(118,185,0,0.12), transparent 45%),
-        linear-gradient(180deg, var(--bg), #070907);
-      font-family: "IBM Plex Sans", "Segoe UI", "Inter", Arial, sans-serif;
-      line-height: 1.7;
+        radial-gradient(55% 45% at 15% 12%, rgba(88, 220, 90, 0.12), transparent 68%),
+        radial-gradient(50% 40% at 80% 18%, rgba(60, 140, 120, 0.08), transparent 70%),
+        radial-gradient(60% 60% at 45% 85%, rgba(35, 80, 70, 0.12), transparent 72%),
+        linear-gradient(160deg, #050606 0%, #070909 45%, #040505 100%);
+      line-height: 1.65;
     }
-    .wrap {
-      max-width: 980px;
+    .top-nav {
+      position: sticky;
+      top: 0;
+      z-index: 10;
+      background: rgba(8, 11, 8, 0.88);
+      backdrop-filter: saturate(180%) blur(6px);
+      border-bottom: 1px solid #253025;
+    }
+    .top-nav-inner {
+      max-width: 1080px;
       margin: 0 auto;
-      padding: 2.25rem 1rem 4rem;
-    }
-    .topbar {
+      padding: 0.85rem 1rem;
       display: flex;
       align-items: center;
       justify-content: space-between;
       gap: 1rem;
-      margin-bottom: 1.5rem;
     }
-    .brand {
-      color: var(--brand);
-      font-family: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
-      font-size: 0.86rem;
-      letter-spacing: 0.16em;
-      text-transform: uppercase;
+    .logo {
+      margin: 0;
+      font-family: "IBM Plex Sans", "Segoe UI", Inter, Arial, sans-serif;
+      font-size: 1.1rem;
+      font-weight: 700;
+      letter-spacing: -0.01em;
     }
-    .back {
-      color: var(--muted);
+    .logo a {
+      color: #f3f7f3;
       text-decoration: none;
-      border: 1px solid var(--line);
+    }
+    .logo a span { color: var(--brand); }
+    .nav-links {
+      display: flex;
+      align-items: center;
+      gap: 0.9rem;
+      font-family: "IBM Plex Sans", "Segoe UI", Inter, Arial, sans-serif;
+      font-size: 0.9rem;
+    }
+    .brand-link {
+      color: #a9b6a9;
+      text-decoration: none;
+      border-bottom: 1px solid transparent;
+    }
+    .brand-link:hover {
+      color: #f3f7f3;
+      border-color: #4f634f;
+    }
+    .pill {
+      display: inline-flex;
+      align-items: center;
+      border: 1px solid #334133;
+      color: #dbe6db;
+      text-decoration: none;
+      padding: 0.25rem 0.62rem;
       border-radius: 999px;
-      padding: 0.4rem 0.8rem;
-      font-size: 0.9rem;
+      background: rgba(22, 30, 22, 0.75);
     }
-    .back:hover {
-      color: var(--text);
+    .pill:hover {
       border-color: var(--brand);
+      color: #f3f7f3;
     }
-    .card {
-      background: linear-gradient(180deg, rgba(18,26,19,0.92), rgba(14,20,14,0.93));
-      border: 1px solid var(--line);
-      border-radius: 1rem;
-      padding: 1.5rem;
-      box-shadow: 0 24px 80px -45px var(--shadow);
+    .container {
+      max-width: 760px;
+      margin: 0 auto;
+      padding: 2rem 1rem 4rem;
     }
-    h1, h2, h3, h4, h5, h6 {
-      line-height: 1.24;
-      margin: 1.4em 0 0.55em;
-      color: #f4fff4;
+    .tag-title {
+      font-family: "IBM Plex Sans", "Segoe UI", Inter, Arial, sans-serif;
+      margin: 0;
+      font-size: clamp(2rem, 6vw, 3rem);
+      letter-spacing: -0.03em;
+      line-height: 1.06;
+      color: #f3f7f3;
     }
-    h1 { font-size: clamp(1.9rem, 5.4vw, 2.85rem); margin-top: 0.2em; }
-    h2 { font-size: clamp(1.35rem, 3.5vw, 1.95rem); }
-    h3 { font-size: clamp(1.12rem, 2.8vw, 1.35rem); }
-    p { color: var(--text); margin: 0.9em 0; }
-    ul, ol { margin: 0.9em 0 1.1em 1.2em; }
-    li { margin: 0.38em 0; }
-    a { color: var(--link); text-underline-offset: 3px; }
-    a:hover { color: var(--brand-soft); }
-    strong { color: #ffffff; }
-    code {
-      font-family: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
-      background: #0c130d;
-      border: 1px solid #253225;
-      border-radius: 0.35rem;
-      padding: 0.1rem 0.35rem;
-      color: #e1f0ce;
-      font-size: 0.92em;
+    .tag-sub {
+      margin: 0.6rem 0 0;
+      color: #a0aea0;
+      font-family: "IBM Plex Sans", "Segoe UI", Inter, Arial, sans-serif;
+      font-size: 0.98rem;
     }
-    pre {
-      background: #0a0f0a;
-      border: 1px solid #253225;
-      border-radius: 0.8rem;
-      padding: 0.95rem 1rem;
-      overflow: auto;
-      margin: 1.1em 0;
-    }
-    pre code { border: 0; padding: 0; background: transparent; color: #dbe8d2; }
-    hr { border: 0; border-top: 1px solid var(--line); margin: 1.6rem 0; }
-    .footer {
-      margin-top: 1.5rem;
-      color: var(--muted);
-      font-size: 0.9rem;
-      text-align: center;
-    }
-    .post-grid {
-      display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
-      gap: 0.95rem;
-      margin-top: 1.1rem;
-    }
-    .post-card {
-      background: #0e140f;
-      border: 1px solid var(--line);
-      border-radius: 0.8rem;
-      padding: 0.95rem;
+    .story-list { margin-top: 1.8rem; }
+    .story {
+      display: block;
       text-decoration: none;
       color: inherit;
-      display: block;
-      transition: transform 140ms ease, border-color 140ms ease, box-shadow 140ms ease;
+      background: var(--paper);
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      padding: 1rem 1rem 1.05rem;
+      margin: 0 0 0.95rem;
+      transition: border-color 130ms ease, transform 130ms ease;
     }
-    .post-card:hover {
-      transform: translateY(-2px);
-      border-color: #3c5a20;
-      box-shadow: 0 15px 45px -30px rgba(118,185,0,0.45);
+    .story:hover {
+      border-color: #4c6241;
+      transform: translateY(-1px);
     }
-    .post-card h3 {
+    .story-meta {
+      font-family: "IBM Plex Sans", "Segoe UI", Inter, Arial, sans-serif;
+      color: #97a497;
+      font-size: 0.82rem;
+      margin-bottom: 0.35rem;
+    }
+    .story h2 {
       margin: 0;
-      font-size: 1.03rem;
-      color: #f0fff0;
+      font-family: "IBM Plex Sans", "Segoe UI", Inter, Arial, sans-serif;
+      font-size: clamp(1.2rem, 3.6vw, 1.55rem);
+      line-height: 1.2;
+      color: #f1f6f1;
+      letter-spacing: -0.01em;
     }
-    .post-card p {
-      margin: 0.55rem 0 0;
-      color: var(--muted);
-      font-size: 0.92rem;
-      line-height: 1.45;
+    .story p {
+      margin: 0.45rem 0 0;
+      color: #c7d1c7;
+      font-size: 1rem;
+    }
+    .tag-row {
+      margin-top: 0.62rem;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.42rem;
+    }
+    .tag {
+      font-family: "IBM Plex Sans", "Segoe UI", Inter, Arial, sans-serif;
+      font-size: 0.74rem;
+      line-height: 1;
+      color: #caefb0;
+      background: rgba(118, 185, 0, 0.12);
+      border: 1px solid rgba(118, 185, 0, 0.28);
+      padding: 0.28rem 0.5rem;
+      border-radius: 999px;
+    }
+    .article {
+      background: var(--paper);
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      padding: 2rem 1.35rem;
+    }
+    .article-head {
+      margin-bottom: 0.8rem;
+      padding-bottom: 0.6rem;
+      border-bottom: 1px solid #253025;
+      font-family: "IBM Plex Sans", "Segoe UI", Inter, Arial, sans-serif;
+      color: #9cab9c;
+      font-size: 0.88rem;
+    }
+    .article h1,
+    .article h2,
+    .article h3,
+    .article h4,
+    .article h5,
+    .article h6 {
+      color: #f3f7f3;
+      line-height: 1.22;
+      margin: 1.3em 0 0.5em;
+      font-family: "IBM Plex Sans", "Segoe UI", Inter, Arial, sans-serif;
+      letter-spacing: -0.02em;
+    }
+    .article h1 { margin-top: 0.1em; font-size: clamp(2rem, 6vw, 2.8rem); }
+    .article h2 { font-size: clamp(1.3rem, 4vw, 1.9rem); }
+    .article h3 { font-size: clamp(1.08rem, 3vw, 1.35rem); }
+    .article p,
+    .article li { color: #dde4dd; font-size: 1.08rem; }
+    .article a { color: #8fda4a; }
+    .article a:hover { color: #9fe55f; }
+    .article strong { color: #f8fff8; }
+    .article code {
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      background: #0c130d;
+      border: 1px solid #253225;
+      border-radius: 5px;
+      padding: 0.08rem 0.35rem;
+      font-size: 0.9em;
+    }
+    .article pre {
+      background: #0a0f0a;
+      color: #f3f3f3;
+      border-radius: 9px;
+      padding: 0.9rem 1rem;
+      overflow-x: auto;
+      margin: 1rem 0;
+    }
+    .article pre code {
+      border: 0;
+      background: transparent;
+      color: inherit;
+      padding: 0;
+    }
+    .article table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 1rem 0;
+      font-size: 0.95rem;
+      font-family: "IBM Plex Sans", "Segoe UI", Inter, Arial, sans-serif;
+      background: #0c130d;
+      border: 1px solid #273227;
+      border-radius: 8px;
+      overflow: hidden;
+      display: block;
+      overflow-x: auto;
+    }
+    .article thead tr {
+      background: rgba(118, 185, 0, 0.12);
+    }
+    .article th,
+    .article td {
+      border: 1px solid #273227;
+      padding: 0.48rem 0.58rem;
+      text-align: left;
+      white-space: normal;
+      min-width: 9rem;
+      overflow-wrap: anywhere;
+    }
+    .article th {
+      color: #e8f6d8;
+      font-weight: 700;
+    }
+    .article td {
+      color: #dde4dd;
+    }
+    .article hr { border: 0; border-top: 1px solid #273227; margin: 1.6rem 0; }
+    .article img {
+      max-width: 100%;
+      height: auto;
+      border: 1px solid #273227;
+      border-radius: 10px;
+      background: #0c130d;
+      padding: 0.35rem;
+      margin: 0.7rem 0 1rem;
+    }
+    .footer {
+      margin-top: 1.8rem;
+      color: #8f9f8f;
+      text-align: center;
+      font-family: "IBM Plex Sans", "Segoe UI", Inter, Arial, sans-serif;
+      font-size: 0.85rem;
     }
     @media (max-width: 680px) {
-      .wrap { padding-top: 1.25rem; }
-      .card { padding: 1rem; }
-      .topbar { align-items: flex-start; flex-direction: column; }
+      .container { padding-top: 1.35rem; }
+      .article { padding: 1.2rem 0.9rem; }
     }
   </style>
 </head>
 <body>
-  <main class="wrap">
-    <div class="topbar">
-      <div class="brand">Spark Arena · Tech Blog</div>
-      <a class="back" href="/">All Posts</a>
+  <header class="top-nav">
+    <div class="top-nav-inner">
+      <h1 class="logo"><a href="/"><span>Spark Arena</span> Tech Blog</a></h1>
+      <div class="nav-links">
+        <a class="brand-link" href="/">Back to all stories</a>
+        <a class="pill" href="https://spark-arena.com/leaderboard">Leaderboard</a>
+      </div>
     </div>
-    <article class="card">
+  </header>
+  <main class="container">
+    <article class="article">
+      <div class="article-head">By Raphael Amorim · 2 min read<div class="tag-row"><span class="tag">reproducibility</span><span class="tag">benchmarking</span><span class="tag">sparkarena</span></div></div>
       <h1>Introducing Spark Arena: A Community-Driven LLM Performance Leaderboard</h1>
+<p><img src="/posts/1-intro/img/spark-arena-logo.svg" alt="Spark Arena logo" loading="lazy" /></p>
 <h2>The Problem: Reproducibility in the Wild</h2>
 <p>Over the past weeks, I&#39;ve been collaborating with @eugr on a challenge we keep seeing across DGX Spark threads. It&#39;s not that people aren&#39;t experimenting—they absolutely are. The real issue? <strong>Lack of reproducibility and indexing of shared experiments.</strong></p>
 <p>Every time a new model drops, we all run through the same chaotic loop:</p>
@@ -178,7 +307,7 @@
 <hr />
 <p><em>Raphael Amorim</em></p>
     </article>
-    <div class="footer">Generated static blog · deployable on Cloudflare Workers</div>
+    <div class="footer">Spark Arena community technical writing</div>
   </main>
 </body>
 </html>

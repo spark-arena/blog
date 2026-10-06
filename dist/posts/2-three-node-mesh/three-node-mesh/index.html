@@ -1,0 +1,462 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>3-Node Mesh Networking on DGX Spark with spark-vllm-docker and sparkrun | Spark Arena Tech Blog</title>
+  <meta name="description" content="by [@eugr](https://forums.developer.nvidia.com/u/eugr/summary) and [@dbsci](https://forums.developer.nvidia.com/u/dbsci/summary)" />
+  <style>
+    :root {
+      --bg: #050606;
+      --paper: #0f1410;
+      --text: #f4f7f4;
+      --muted: #95a295;
+      --line: #2a332a;
+      --brand: #76b900;
+      --brand-dark: #5f9700;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: Charter, "Bitstream Charter", "Sitka Text", Cambria, serif;
+      color: var(--text);
+      background:
+        radial-gradient(55% 45% at 15% 12%, rgba(88, 220, 90, 0.12), transparent 68%),
+        radial-gradient(50% 40% at 80% 18%, rgba(60, 140, 120, 0.08), transparent 70%),
+        radial-gradient(60% 60% at 45% 85%, rgba(35, 80, 70, 0.12), transparent 72%),
+        linear-gradient(160deg, #050606 0%, #070909 45%, #040505 100%);
+      line-height: 1.65;
+    }
+    .top-nav {
+      position: sticky;
+      top: 0;
+      z-index: 10;
+      background: rgba(8, 11, 8, 0.88);
+      backdrop-filter: saturate(180%) blur(6px);
+      border-bottom: 1px solid #253025;
+    }
+    .top-nav-inner {
+      max-width: 1080px;
+      margin: 0 auto;
+      padding: 0.85rem 1rem;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 1rem;
+    }
+    .logo {
+      margin: 0;
+      font-family: "IBM Plex Sans", "Segoe UI", Inter, Arial, sans-serif;
+      font-size: 1.1rem;
+      font-weight: 700;
+      letter-spacing: -0.01em;
+    }
+    .logo a {
+      color: #f3f7f3;
+      text-decoration: none;
+    }
+    .logo a span { color: var(--brand); }
+    .nav-links {
+      display: flex;
+      align-items: center;
+      gap: 0.9rem;
+      font-family: "IBM Plex Sans", "Segoe UI", Inter, Arial, sans-serif;
+      font-size: 0.9rem;
+    }
+    .brand-link {
+      color: #a9b6a9;
+      text-decoration: none;
+      border-bottom: 1px solid transparent;
+    }
+    .brand-link:hover {
+      color: #f3f7f3;
+      border-color: #4f634f;
+    }
+    .pill {
+      display: inline-flex;
+      align-items: center;
+      border: 1px solid #334133;
+      color: #dbe6db;
+      text-decoration: none;
+      padding: 0.25rem 0.62rem;
+      border-radius: 999px;
+      background: rgba(22, 30, 22, 0.75);
+    }
+    .pill:hover {
+      border-color: var(--brand);
+      color: #f3f7f3;
+    }
+    .container {
+      max-width: 760px;
+      margin: 0 auto;
+      padding: 2rem 1rem 4rem;
+    }
+    .tag-title {
+      font-family: "IBM Plex Sans", "Segoe UI", Inter, Arial, sans-serif;
+      margin: 0;
+      font-size: clamp(2rem, 6vw, 3rem);
+      letter-spacing: -0.03em;
+      line-height: 1.06;
+      color: #f3f7f3;
+    }
+    .tag-sub {
+      margin: 0.6rem 0 0;
+      color: #a0aea0;
+      font-family: "IBM Plex Sans", "Segoe UI", Inter, Arial, sans-serif;
+      font-size: 0.98rem;
+    }
+    .story-list { margin-top: 1.8rem; }
+    .story {
+      display: block;
+      text-decoration: none;
+      color: inherit;
+      background: var(--paper);
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      padding: 1rem 1rem 1.05rem;
+      margin: 0 0 0.95rem;
+      transition: border-color 130ms ease, transform 130ms ease;
+    }
+    .story:hover {
+      border-color: #4c6241;
+      transform: translateY(-1px);
+    }
+    .story-meta {
+      font-family: "IBM Plex Sans", "Segoe UI", Inter, Arial, sans-serif;
+      color: #97a497;
+      font-size: 0.82rem;
+      margin-bottom: 0.35rem;
+    }
+    .story h2 {
+      margin: 0;
+      font-family: "IBM Plex Sans", "Segoe UI", Inter, Arial, sans-serif;
+      font-size: clamp(1.2rem, 3.6vw, 1.55rem);
+      line-height: 1.2;
+      color: #f1f6f1;
+      letter-spacing: -0.01em;
+    }
+    .story p {
+      margin: 0.45rem 0 0;
+      color: #c7d1c7;
+      font-size: 1rem;
+    }
+    .tag-row {
+      margin-top: 0.62rem;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.42rem;
+    }
+    .tag {
+      font-family: "IBM Plex Sans", "Segoe UI", Inter, Arial, sans-serif;
+      font-size: 0.74rem;
+      line-height: 1;
+      color: #caefb0;
+      background: rgba(118, 185, 0, 0.12);
+      border: 1px solid rgba(118, 185, 0, 0.28);
+      padding: 0.28rem 0.5rem;
+      border-radius: 999px;
+    }
+    .article {
+      background: var(--paper);
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      padding: 2rem 1.35rem;
+    }
+    .article-head {
+      margin-bottom: 0.8rem;
+      padding-bottom: 0.6rem;
+      border-bottom: 1px solid #253025;
+      font-family: "IBM Plex Sans", "Segoe UI", Inter, Arial, sans-serif;
+      color: #9cab9c;
+      font-size: 0.88rem;
+    }
+    .article h1,
+    .article h2,
+    .article h3,
+    .article h4,
+    .article h5,
+    .article h6 {
+      color: #f3f7f3;
+      line-height: 1.22;
+      margin: 1.3em 0 0.5em;
+      font-family: "IBM Plex Sans", "Segoe UI", Inter, Arial, sans-serif;
+      letter-spacing: -0.02em;
+    }
+    .article h1 { margin-top: 0.1em; font-size: clamp(2rem, 6vw, 2.8rem); }
+    .article h2 { font-size: clamp(1.3rem, 4vw, 1.9rem); }
+    .article h3 { font-size: clamp(1.08rem, 3vw, 1.35rem); }
+    .article p,
+    .article li { color: #dde4dd; font-size: 1.08rem; }
+    .article a { color: #8fda4a; }
+    .article a:hover { color: #9fe55f; }
+    .article strong { color: #f8fff8; }
+    .article code {
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      background: #0c130d;
+      border: 1px solid #253225;
+      border-radius: 5px;
+      padding: 0.08rem 0.35rem;
+      font-size: 0.9em;
+    }
+    .article pre {
+      background: #0a0f0a;
+      color: #f3f3f3;
+      border-radius: 9px;
+      padding: 0.9rem 1rem;
+      overflow-x: auto;
+      margin: 1rem 0;
+    }
+    .article pre code {
+      border: 0;
+      background: transparent;
+      color: inherit;
+      padding: 0;
+    }
+    .article table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 1rem 0;
+      font-size: 0.95rem;
+      font-family: "IBM Plex Sans", "Segoe UI", Inter, Arial, sans-serif;
+      background: #0c130d;
+      border: 1px solid #273227;
+      border-radius: 8px;
+      overflow: hidden;
+      display: block;
+      overflow-x: auto;
+    }
+    .article thead tr {
+      background: rgba(118, 185, 0, 0.12);
+    }
+    .article th,
+    .article td {
+      border: 1px solid #273227;
+      padding: 0.48rem 0.58rem;
+      text-align: left;
+      white-space: normal;
+      min-width: 9rem;
+      overflow-wrap: anywhere;
+    }
+    .article th {
+      color: #e8f6d8;
+      font-weight: 700;
+    }
+    .article td {
+      color: #dde4dd;
+    }
+    .article hr { border: 0; border-top: 1px solid #273227; margin: 1.6rem 0; }
+    .article img {
+      max-width: 100%;
+      height: auto;
+      border: 1px solid #273227;
+      border-radius: 10px;
+      background: #0c130d;
+      padding: 0.35rem;
+      margin: 0.7rem 0 1rem;
+    }
+    .footer {
+      margin-top: 1.8rem;
+      color: #8f9f8f;
+      text-align: center;
+      font-family: "IBM Plex Sans", "Segoe UI", Inter, Arial, sans-serif;
+      font-size: 0.85rem;
+    }
+    @media (max-width: 680px) {
+      .container { padding-top: 1.35rem; }
+      .article { padding: 1.2rem 0.9rem; }
+    }
+  </style>
+</head>
+<body>
+  <header class="top-nav">
+    <div class="top-nav-inner">
+      <h1 class="logo"><a href="/"><span>Spark Arena</span> Tech Blog</a></h1>
+      <div class="nav-links">
+        <a class="brand-link" href="/">Back to all stories</a>
+        <a class="pill" href="https://spark-arena.com/leaderboard">Leaderboard</a>
+      </div>
+    </div>
+  </header>
+  <main class="container">
+    <article class="article">
+      <div class="article-head">By eugr, dbsci · 7 min read<div class="tag-row"><span class="tag">clustering</span><span class="tag">networking</span><span class="tag">sparkrun</span><span class="tag">spark-vllm-docker</span><span class="tag">dgx-spark</span></div></div>
+      <h1>3-Node Mesh Networking on DGX Spark with spark-vllm-docker and sparkrun</h1>
+<p>by <a href="https://forums.developer.nvidia.com/u/eugr/summary" target="_blank" rel="noopener noreferrer">@eugr</a> and <a href="https://forums.developer.nvidia.com/u/dbsci/summary" target="_blank" rel="noopener noreferrer">@dbsci</a></p>
+<p>Our community vLLM Docker (also known as <a href="https://github.com/eugr/spark-vllm-docker" target="_blank" rel="noopener noreferrer">spark-vllm-docker</a>) and <a href="https://github.com/spark-arena/sparkrun" target="_blank" rel="noopener noreferrer">sparkrun</a> (via community Docker builds) now support 3-node mesh configuration!</p>
+<p>Original NVIDIA forums post: <a href="https://forums.developer.nvidia.com/t/three-node-spark-clusters-without-a-switch-are-now-supported-in-spark-vllm-docker-and-sparkrun/365296" target="_blank" rel="noopener noreferrer">Three node Spark clusters (without a switch) are now supported in spark-vllm-docker and sparkrun</a></p>
+<h2>Background</h2>
+<p>NVIDIA DGX Spark systems ship with a ConnectX-7 (CX7) network adapter that provides two QSFP ports, each with two logical partitions — giving four RoCE network interfaces per machine. In a typical 2-node setup, you connect a single cable between the two Sparks and configure static IPs on a shared subnet. Simple.</p>
+<p>But what if you have three DGX Sparks? With two QSFP ports per machine and three machines, you can build a full mesh — every node directly connected to every other node with a dedicated cable. No switch required.</p>
+<pre><code class="language-text">           Spark 1
+    Port 0       Port 1
+      |           |
+    Port 1       Port 0
+   Spark 2       Spark 3
+    Port 0  ---  Port 1</code></pre>
+<p>This mesh topology gives each node up to 200 Gbps link to its two peers, enabling pipeline-parallel inference workloads that split a model across all three machines.</p>
+<h2>Why Mesh?</h2>
+<p>On DGX Spark, each node has one GPU with 128 GB of unified memory. For larger models that don&#39;t fit on a single node, you need multi-node inference with tensor parallelism (TP) or pipeline parallelism (PP). The mesh topology works well for 3-node PP because:</p>
+<ul><li>Does not require a switch — each inter-node link is a dedicated point-to-point cable</li><li>Flexible bandwidth — each node has 200 Gbps of CX7 bandwidth shared across its two ports; either link can burst up</li></ul>
+<p>to the full 200 Gbps when the other is underutilized</p>
+<ul><li>Low latency — direct connections with no switch hops</li></ul>
+<h2>Physical Cabling</h2>
+<p>You need three QSFP cables. Each cable connects Port 0 on one Spark to Port 1 on another:</p>
+<p><img src="/posts/2-three-node-mesh/img/mesh-topology.svg" alt="3-node DGX Spark mesh topology" loading="lazy" /></p>
+<table><thead><tr><th>Cable</th><th>From</th><th>To</th></tr></thead><tbody><tr><td>1</td><td>Spark 1 Port 0</td><td>Spark 2 Port 1</td></tr><tr><td>2</td><td>Spark 2 Port 0</td><td>Spark 3 Port 1</td></tr><tr><td>3</td><td>Spark 3 Port 0</td><td>Spark 1 Port 1</td></tr></tbody></table>
+<p>It&#39;s important to &quot;cross-connect&quot; between port0-port1, otherwise the mesh may not work properly.</p>
+<p>Each port has two logical partitions (visible as two network interfaces), so each cable carries two independent L3 subnets. With 3 cables × 2 subnets each, the mesh uses 6 unique subnets total.</p>
+<p>Tip: You can use <a href="https://github.com/spark-arena/sparkrun" target="_blank" rel="noopener noreferrer">sparkrun</a>&#39;s topology detection to automatically configure IP addresses on all interfaces.</p>
+<p>IMPORTANT! Mesh setup requires all Sparks to be connected to a common network via it&#39;s Ethernet port, as unlike 2-node systems, it won&#39;t be able to use it&#39;s QSFP ports for NCCL OOB communications.</p>
+<p>OOB interface is only required for initialization, discovery and high-level coordination, but the actual workloads will still use fast QSFP connections.</p>
+<h2>Requirements</h2>
+<ul><li>3× NVIDIA DGX Spark systems.</li><li>3× QSFP56 cables.</li><li>Sparks connected as described above.</li><li>All sparks connected to common network via an Ethernet port (wifi may work but not recommended).</li><li>SSH access from your control machine to all three Sparks.</li><li>latest version of <a href="https://github.com/spark-arena/sparkrun" target="_blank" rel="noopener noreferrer">sparkrun</a> installed on the control machine (or on one of the Sparks) or <a href="https://github.com/eugr/spark-vllm-docker" target="_blank" rel="noopener noreferrer">Community vLLM Docker</a> repo checked out on one of the Sparks.</li><li>vLLM image built using the latest version of <a href="https://github.com/eugr/spark-vllm-docker" target="_blank" rel="noopener noreferrer">Community vLLM Docker</a> (it won&#39;t work with NGC or any other images due to non-standard NCCL build requirements).</li><li>sudo access on the Sparks (for initial netplan configuration; subsequent runs don&#39;t need it).</li></ul>
+<h2>Setup and usage</h2>
+<p>For new users, it&#39;s recommended to use sparkrun as it takes care of initial network setup and provides more sophisticated orchestration capabilities.</p>
+<p>Existing spark-vllm-docker users or those who want more low-level control over vLLM may follow the instructions below:</p>
+<h2>Quick start with spark-vllm-docker</h2>
+<p>Before you begin, make sure you follow the Networking Guide to set up wiring and IP addresses.</p>
+<p>Check out the repository on the head node.</p>
+<pre><code class="language-bash">git clone https://github.com/eugr/spark-vllm-docker.git
+cd spark-vllm-docker</code></pre>
+<p>Run the included recipe.</p>
+<pre><code class="language-bash">./run-recipe.sh --discover # configure cluster
+./run-recipe.sh recipes/3x-spark-cluster/qwen3.5-397b-int4-autoround.yaml --setup --no-ray --force-build # you can drop --setup and --force-build on subsequent calls</code></pre>
+<p>It will run Intel/Qwen3.5-397B-Int4-Autoround on all 3 nodes in Pipeline Parallel mode.</p>
+<p>Expected performance (as of 3/31/2026):</p>
+<table><thead><tr><th>model</th><th>test</th><th>t/s</th><th>peak t/s</th><th>ttfr (ms)</th><th>est_ppt (ms)</th><th>e2e_ttft (ms)</th></tr></thead><tbody><tr><td>Intel/Qwen3.5-397B-A17B-int4-AutoRound</td><td>pp2048</td><td>901.27 ± 75.84</td><td></td><td>2296.92 ± 196.74</td><td>2289.99 ± 196.74</td><td>2297.10 ± 196.73</td></tr><tr><td>Intel/Qwen3.5-397B-A17B-int4-AutoRound</td><td>tg32</td><td>17.86 ± 0.16</td><td>18.33 ± 0.47</td><td></td><td></td><td></td></tr><tr><td>Intel/Qwen3.5-397B-A17B-int4-AutoRound</td><td>ctx_pp @ d8192</td><td>1165.46 ± 70.82</td><td></td><td>7063.95 ± 446.99</td><td>7057.01 ± 446.99</td><td>7064.08 ± 447.00</td></tr><tr><td>Intel/Qwen3.5-397B-A17B-int4-AutoRound</td><td>ctx_tg @ d8192</td><td>17.63 ± 0.04</td><td>18.33 ± 0.47</td><td></td><td></td><td></td></tr><tr><td>Intel/Qwen3.5-397B-A17B-int4-AutoRound</td><td>pp2048 @ d8192</td><td>372.73 ± 2.33</td><td></td><td>5501.79 ± 34.19</td><td>5494.85 ± 34.19</td><td>5501.95 ± 34.22</td></tr><tr><td>Intel/Qwen3.5-397B-A17B-int4-AutoRound</td><td>tg32 @ d8192</td><td>17.58 ± 0.02</td><td>18.00 ± 0.00</td><td></td><td></td><td></td></tr><tr><td>Intel/Qwen3.5-397B-A17B-int4-AutoRound</td><td>ctx_pp @ d16384</td><td>1239.28 ± 48.23</td><td></td><td>13248.92 ± 529.88</td><td>13241.98 ± 529.88</td><td>13249.11 ± 529.80</td></tr><tr><td>Intel/Qwen3.5-397B-A17B-int4-AutoRound</td><td>ctx_tg @ d16384</td><td>17.44 ± 0.05</td><td>18.00 ± 0.00</td><td></td><td></td><td></td></tr><tr><td>Intel/Qwen3.5-397B-A17B-int4-AutoRound</td><td>pp2048 @ d16384</td><td>348.75 ± 1.07</td><td></td><td>5879.40 ± 17.93</td><td>5872.47 ± 17.93</td><td>5879.53 ± 18.00</td></tr><tr><td>Intel/Qwen3.5-397B-A17B-int4-AutoRound</td><td>tg32 @ d16384</td><td>17.46 ± 0.04</td><td>18.00 ± 0.00</td><td></td><td></td><td></td></tr><tr><td>Intel/Qwen3.5-397B-A17B-int4-AutoRound</td><td>ctx_pp @ d32768</td><td>1161.66 ± 1.61</td><td></td><td>28215.72 ± 39.00</td><td>28208.79 ± 39.00</td><td>28215.86 ± 38.97</td></tr><tr><td>Intel/Qwen3.5-397B-A17B-int4-AutoRound</td><td>ctx_tg @ d32768</td><td>17.25 ± 0.03</td><td>18.00 ± 0.00</td><td></td><td></td><td></td></tr><tr><td>Intel/Qwen3.5-397B-A17B-int4-AutoRound</td><td>pp2048 @ d32768</td><td>311.32 ± 1.67</td><td></td><td>6585.57 ± 35.44</td><td>6578.64 ± 35.44</td><td>6585.70 ± 35.48</td></tr><tr><td>Intel/Qwen3.5-397B-A17B-int4-AutoRound</td><td>tg32 @ d32768</td><td>17.37 ± 0.29</td><td>18.33 ± 0.47</td><td></td><td></td><td></td></tr></tbody></table>
+<p>llama-benchy (0.3.5) date: 2026-03-31 18:03:15 | latency mode: api</p>
+<h2>Setup with sparkrun</h2>
+<h3>Step 1: Create a cluster</h3>
+<pre><code class="language-bash">sparkrun cluster create mesh \
+  --hosts 10.0.0.11,10.0.0.12,10.0.0.13 \
+  --default</code></pre>
+<p>Replace the IPs with your Sparks&#39; management network addresses.</p>
+<h3>Step 2: Run the setup wizard</h3>
+<pre><code class="language-bash">sparkrun setup wizard --cluster mesh</code></pre>
+<p>The wizard walks through everything:</p>
+<ul><li>SSH mesh — ensures all nodes can SSH to each other (required for multi-node inference)</li><li>CX7 detection — discovers all ConnectX-7 interfaces on each host</li><li>Topology detection — uses IPv6 multicast neighbor discovery to map which port connects to which peer, then classifies the topology as mesh</li><li>Network configuration — assigns static IPs and jumbo frames (MTU 9000) via netplan, with a unique subnet pair per cable</li><li>Host key distribution — registers the new CX7 IPs in known_hosts so SSH works over the high-speed interfaces</li><li>Saves topology — records topology: ring in the cluster definition so sparkrun run automatically applies the right NCCL settings</li></ul>
+<p>The wizard auto-detects everything. You don&#39;t need to know which cable connects which ports — sparkrun discovers the physical topology and assigns subnets accordingly.</p>
+<h3>Step 2 (alternative): Manual CX7 setup</h3>
+<p>If you prefer to run just the CX7 step:</p>
+<pre><code class="language-bash">sparkrun setup cx7 --cluster mesh</code></pre>
+<p>This detects interfaces, discovers topology, shows the planned configuration, and asks for confirmation before applying.</p>
+<h2>What sparkrun configures</h2>
+<p>On each Spark, sparkrun writes a netplan file (<code>/etc/netplan/40-cx7.yaml</code>) that configures all four CX7 interfaces with:</p>
+<ul><li>Static IPs on the correct subnets for each cable</li><li>MTU 9000 (jumbo frames) for maximum throughput</li><li>No link-local addresses (avoids NCCL routing confusion)</li></ul>
+<p>Example for Spark 1 (connected to Spark 2 on port 0, Spark 3 on port 1):</p>
+<pre><code class="language-yaml">network:
+  version: 2
+  ethernets:
+    enp1s0f0np0:
+      dhcp4: no
+      dhcp6: no
+      link-local: [ ]
+      mtu: 9000
+      addresses: [ 192.168.177.11/24 ]
+    enP2p1s0f0np0:
+      dhcp4: no
+      dhcp6: no
+      link-local: [ ]
+      mtu: 9000
+      addresses: [ 192.168.178.11/24 ]
+    enp1s0f1np1:
+      dhcp4: no
+      dhcp6: no
+      link-local: [ ]
+      mtu: 9000
+      addresses: [ 192.168.187.11/24 ]
+    enP2p1s0f1np1:
+      dhcp4: no
+      dhcp6: no
+      link-local: [ ]
+      mtu: 9000
+      addresses: [ 192.168.188.11/24 ]</code></pre>
+<h2>Idempotent and safe</h2>
+<p>Running <code>sparkrun setup cx7</code> again on an already-configured mesh is safe — it detects the existing configuration, validates it against the detected topology, and reports &quot;All hosts already configured&quot; without making changes. Use <code>--force</code> if you need to reconfigure.</p>
+<h2>Running Inference on the Mesh</h2>
+<p>Once the mesh is configured, sparkrun automatically applies the right NCCL environment variables when launching inference on the cluster:</p>
+<pre><code class="language-bash">sparkrun run &lt;recipe&gt; --cluster mesh
+# -- or --
+sparkrun run &lt;recipe&gt;</code></pre>
+<p>(We don&#39;t need to specify the cluster name because we already set it as our default cluster in the first step.)</p>
+<p>Because the cluster definition has <code>topology: ring</code>, sparkrun injects the following NCCL environment variables:</p>
+<ul><li><code>NCCL_NET_PLUGIN=none</code></li><li><code>NCCL_IB_SUBNET_AWARE_ROUTING=1</code></li><li><code>NCCL_IB_MERGE_NICS=0</code></li></ul>
+<p>Sparkrun doesn&#39;t require other changes to any other NCCL environment variables because the existing autodetection functionality handles the rest.</p>
+<p>These changes ensure that we&#39;re properly setup for using the mesh with the latest patched versions of NCCL that are included as part of @eugr&#39;s latest builds.</p>
+<h2>Pipeline parallel recipes</h2>
+<p>Here is a sparkrun version to run the recipe sample from the new spark-vllm-docker release:</p>
+<pre><code class="language-bash">sparkrun run @experimental/qwen3.5-397b-a17b-int4-autoround-3x-vllm</code></pre>
+<p>And here is the recipe file:</p>
+<pre><code class="language-yaml"># qwen3.5-397b-a17b-int4-autoround-3x-vllm.yaml
+recipe_version: &quot;2&quot;
+model: Intel/Qwen3.5-397B-A17B-int4-AutoRound
+runtime: vllm
+
+# this recipe is specific to 3-node mesh, so we set min/max nodes to 3
+min_nodes: 3
+max_nodes: 3
+
+# using the Spark Arena eugr nightly container will signal sparkrun to use @eugr&#39;s latest release
+container: ghcr.io/spark-arena/dgx-vllm-eugr-nightly-tf5:latest
+
+metadata:
+  description: Recipe for Qwen3.5-397B-INT4-Autoround to run on 3-node mesh in pipeline-parallel mode
+
+# sparkrun knows to use &quot;--tf5&quot; flag when using the &#39;dgx-vllm-eugr-nightly-tf5&#39; container, but we add it for completeness
+build_args:
+  - --tf5
+
+# Mod required to fix ROPE syntax error
+mods:
+  - mods/fix-qwen3.5-autoround
+  - mods/fix-qwen3.5-chat-template
+
+# Ideally all command arguments should be specified in the defaults section
+defaults:
+  port: 8000
+  host: 0.0.0.0
+  pipeline_parallel: 3
+  tensor_parallel: 1
+  gpu_memory_utilization: 0.7
+  max_model_len: 262144
+  max_num_batched_tokens: 16384
+  max_num_seqs: 10
+  kv_cache_dtype: fp8
+  tool_call_parser: qwen3_coder
+  reasoning_parser: qwen3
+
+# Environment variables
+env:
+  PYTORCH_CUDA_ALLOC_CONF: &quot;expandable_segments:True&quot;
+  VLLM_MARLIN_USE_ATOMIC_ADD: 1
+
+# The vLLM serve command template
+command: |
+  vllm serve {model} \
+    --max-model-len {max_model_len} \
+    --max-num-seqs {max_num_seqs} \
+    --kv-cache-dtype {kv_cache_dtype} \
+    --gpu-memory-utilization {gpu_memory_utilization} \
+    --port {port} \
+    --host {host} \
+    --enable-prefix-caching \
+    --enable-auto-tool-choice \
+    --tool-call-parser {tool_call_parser} \
+    --reasoning-parser {reasoning_parser} \
+    --max-num-batched-tokens {max_num_batched_tokens} \
+    --trust-remote-code \
+    --chat-template unsloth.jinja \
+    --load-format fastsafetensors \
+    -tp {tensor_parallel} \
+    -pp {pipeline_parallel}</code></pre>
+<p>More mesh pipeline-parallel recipe examples are coming soon to the official sparkrun registries.</p>
+<h2>Troubleshooting</h2>
+<p>&quot;ring topology requires 2 physical ports (4 interfaces)&quot; — Your Sparks only have one active CX7 port (2 interfaces). Mesh requires both ports connected. Check that all three cables are plugged in and that both ports show as active (<code>ip link</code>).</p>
+<p>&quot;ring topology requires exactly 3 hosts&quot; — Mesh/ring is specifically for 3-node configurations. For 2 nodes, use the default switch/direct topology. For 4+ nodes, use a switch.</p>
+<p>&quot;Topology detected as &#39;switch&#39; instead of &#39;ring&#39;&quot; — This means some interfaces can see more than one peer, indicating a switch is in the path. Verify your cables are direct point-to-point connections (not going through a switch).</p>
+<p>&quot;passwordless sudo not available&quot; — Initial netplan configuration requires sudo. The wizard will prompt for a password. After the first setup, re-runs don&#39;t need sudo (idempotency check works without it).</p>
+    </article>
+    <div class="footer">Spark Arena community technical writing</div>
+  </main>
+</body>
+</html>

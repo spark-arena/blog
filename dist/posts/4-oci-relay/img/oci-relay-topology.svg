@@ -1,0 +1,60 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="560" height="752" viewBox="0 0 560 752" role="img" aria-labelledby="title desc">
+  <title id="title">OCI Relay communication and image distribution</title>
+  <desc id="desc">Sparkrun sets up one source relay and a relay on each target. Receivers exchange image metadata and cache inventories with the source and request missing layers over HTTP/2 with mutual TLS. Each receiver serves a loopback registry for its local Docker import. Dashed lines show setup and lifecycle management; solid lines show image protocol traffic.</desc>
+  <defs>
+    <style>
+      text { font-family: Arial, sans-serif; text-anchor: middle; }
+      .heading { fill: #f3f7f3; font-size: 23px; font-weight: 700; }
+      .label { fill: #f3f7f3; font-size: 22px; font-weight: 700; }
+      .detail { fill: #cbd8cb; font-size: 18px; }
+      .note { fill: #b7cbb7; font-size: 16px; }
+      .box { fill: #152016; stroke: #76b900; stroke-width: 2; }
+      .control { fill: none; stroke: #96adb9; stroke-width: 2; stroke-dasharray: 6 5; }
+      .data { fill: none; stroke: #8fda4a; stroke-width: 2.5; }
+    </style>
+    <marker id="data-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#8fda4a" />
+    </marker>
+    <marker id="control-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#96adb9" />
+    </marker>
+  </defs>
+  <rect width="560" height="752" rx="14" fill="#0c130d" />
+  <text class="heading" x="280" y="38">One source, multiple receivers</text>
+  <path class="control" d="M 280 145 V 232" marker-end="url(#control-arrow)" />
+  <path class="control" d="M 100 108 H 14 V 500 H 40" marker-end="url(#control-arrow)" />
+  <path class="control" d="M 460 108 H 546 V 500 H 520" marker-end="url(#control-arrow)" />
+  <text class="detail" x="322" y="193">setup</text>
+  <rect class="box" x="100" y="70" width="360" height="75" rx="12" />
+  <text class="label" x="280" y="101">Sparkrun controller</text>
+  <text class="detail" x="280" y="128">Setup, credentials, cleanup</text>
+  <rect class="box" x="140" y="232" width="280" height="95" rx="12" />
+  <text class="label" x="280" y="262">Source relay</text>
+  <text class="detail" x="280" y="287">Local Docker or OCI registry</text>
+  <text class="note" x="280" y="310">Pinned image metadata</text>
+  <path class="data" d="M 240 329 V 365 H 150 V 452" marker-start="url(#data-arrow)" marker-end="url(#data-arrow)" />
+  <path class="data" d="M 320 329 V 365 H 410 V 452" marker-start="url(#data-arrow)" marker-end="url(#data-arrow)" />
+  <rect x="138" y="385" width="284" height="31" rx="5" fill="#0c130d" />
+  <text class="detail" x="280" y="407">HTTP/2 + mutual TLS</text>
+  <rect x="51" y="416" width="458" height="24" rx="5" fill="#0c130d" />
+  <text class="note" x="280" y="433">Image metadata, cache negotiation, missing layers</text>
+  <rect class="box" x="40" y="452" width="220" height="92" rx="12" />
+  <text class="label" x="150" y="484">Receiver A</text>
+  <text class="detail" x="150" y="513">Local cache + misses</text>
+  <rect class="box" x="300" y="452" width="220" height="92" rx="12" />
+  <text class="label" x="410" y="484">Receiver B</text>
+  <text class="detail" x="410" y="513">Local cache + misses</text>
+  <path class="data" d="M 150 544 V 609" marker-end="url(#data-arrow)" />
+  <path class="data" d="M 410 544 V 609" marker-end="url(#data-arrow)" />
+  <rect x="86" y="562" width="128" height="24" fill="#0c130d" />
+  <rect x="346" y="562" width="128" height="24" fill="#0c130d" />
+  <text class="note" x="150" y="579">loopback pull</text>
+  <text class="note" x="410" y="579">loopback pull</text>
+  <rect class="box" x="40" y="609" width="220" height="72" rx="12" />
+  <text class="label" x="150" y="639">Docker A</text>
+  <text class="detail" x="150" y="664">Import + verify</text>
+  <rect class="box" x="300" y="609" width="220" height="72" rx="12" />
+  <text class="label" x="410" y="639">Docker B</text>
+  <text class="detail" x="410" y="664">Import + verify</text>
+  <text class="note" x="280" y="725">Solid: image protocol · Dashed: setup / lifecycle</text>
+</svg>
