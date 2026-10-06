@@ -10,12 +10,6 @@ tags:
 description: How OCI Relay avoids full image archives, reuses layers across Docker storage backends, and overlaps registry pulls with distribution to speed up Sparkrun deployments.
 ---
 
-<!--
-SPDX-FileCopyrightText: 2026 Scitrera LLC
-SPDX-License-Identifier: AGPL-3.0-only
-SPDX-FileComment: The Sparkrun additional permission in LICENSE_EXCEPTION applies.
--->
-
 # Moving fewer bytes: how OCI Relay speeds up Sparkrun image distribution
 
 *October 6, 2026. Based on the OCI Relay v0.1.0 engine and Sparkrun's
