@@ -12,8 +12,8 @@ description: How OCI Relay avoids full image archives, reuses layers across Dock
 
 # Moving fewer bytes: how OCI Relay speeds up Sparkrun image distribution
 
-*October 6, 2026. Based on the OCI Relay v0.1.0 engine and Sparkrun's
-`develop-next` integration, including the latest plugin updates.*
+*Updated October 7, 2026 for [OCI Relay v0.1.2](https://github.com/scitrera/oci-relay/releases/tag/v0.1.2)
+and Sparkrun's `develop-next` integration.*
 
 A fast network does not automatically make a large container image quick to
 deploy. Before the first byte reaches another machine, the source may need to
@@ -225,11 +225,28 @@ per destination. Backpressure limits active acquisitions and buffered data, and
 lagging readers have a bounded wait before they must retry.
 
 That sharing has a practical limit: the ring eventually discards old bytes. A
-late receiver can require a replay or another registry download. Optional disk
-retention keeps verified compressed registry blobs for the operation; it defaults
-to zero and uses ordinary buffered file I/O. Memory-ring budgets, disk-retention
-budgets, Docker's own storage, and the operating system's page cache are separate.
-A configured relay buffer limit is not a limit on total process memory.
+late receiver can require a replay or another registry download. To reduce that
+repeat work, the Sparkrun plugin now enables **up to 16 GiB of registry disk
+retention** on the fetcher by default. It checks available space and reduces the
+budget to leave **16 GiB free**; low or unknown headroom disables retention.
+Setting `registry_cache_bytes: 0` disables it explicitly. The standalone CLI
+still defaults to zero. This startup check cannot reserve space against other
+processes writing to the same disk.
+
+The cache retains whole compressed blobs for this operation, reserving their
+space before writing. The first receiver streams while bytes are written with
+buffered I/O. Later readers can use the file after size and digest verification;
+Linux replay reads prefer direct I/O, with buffered fallback where unsupported.
+There is no full-image staging barrier. Files are removed during cleanup, and
+a cache write failure disables retention while verified streaming continues.
+
+This is a first-fit cache, not a persistent or LRU cache: a blob that cannot fit
+streams without retention and may be downloaded again for a straggler. That
+explains why registry download bytes can exceed the bytes one receiver needs.
+Memory buffers, this disk budget, optional decoder scratch space, Docker's own
+storage, and the operating system's page cache are separate. A configured relay
+buffer limit is not a limit on total process memory. The [registry cache guide](https://github.com/scitrera/oci-relay/blob/main/docs/registry-source.md)
+details the limits and counters.
 
 The implementation reuses small, useful upstream components: Dragonfly's rolling
 statistics and adapted OCI reference handling, Moby's Engine client, upstream
@@ -241,25 +258,61 @@ filesystem or snapshotter.
 Transfer concurrency also improves on a single archive stream per destination.
 Independent missing layers can move concurrently over authenticated HTTP/2.
 The plugin prefers a working direct route and can use SSH forwarding or SSH
-stdio when needed. Explicitly configured multiple data paths allow whole-layer
-requests to use separate network interfaces without bonding. Additional HTTP/2
-connections can also reduce contention on one path.
+stdio when needed. Explicitly configured data paths let transfers use separate
+network interfaces without bonding. Additional HTTP/2 connections can also
+reduce contention on one path.
 
-The current scheduler assigns whole layers. Its 64 KiB buffer frames are not
-independently downloaded pieces, and a single large layer is not striped across
-both NICs. Actual concurrency depends on missing layers and Docker's download
-demand, as well as the relay's limits. RDMA and HTTP Range resume are not
-implemented.
+A handful of large layers can dominate an image, so parallelism now works
+**within a layer** at two different stages:
+
+| Stage | Default for layers at least 256 MiB | What it helps |
+|---|---|---|
+| Registry/CDN to fetching relay | Up to four concurrent 16 MiB HTTP byte-range requests per blob | Downloading a large blob when one upstream response is the bottleneck |
+| Source relay to receiver relay | Alternating 1 MiB pieces over up to four qualified connections | Using multiple connections and, when configured, both network links for one large layer |
+
+Sizes refer to the representation used at that stage: upstream blobs are
+usually compressed, while native classic-store streams are uncompressed.
+
+The upstream range downloader is new in v0.1.2. It assembles completed ranges
+in order into the existing source stream, so receivers can consume bytes while
+the rest of the layer downloads. A registry that ignores the initial range and
+returns the whole blob can still be used without a second download. Invalid
+partial responses fail validation. The final full-layer digest check remains
+mandatory, and range downloads require no full-layer disk staging.
+
+Relay-to-receiver striping uses one source acquisition shared by all lanes.
+It works with live registry downloads and native layer reconstruction, without
+fetching or reconstructing a separate copy for each connection. The receiver
+reassembles the pieces in order into its existing cache and SHA-256 verifier.
+These are pieces of persistent streams; they are distinct from the cache's
+64 KiB frames and the upstream HTTP range requests. The 1 MiB stripe default
+can be tuned from 1–64 MiB, independently of the upstream 16 MiB range size.
+
+Striping requires at least two qualified connections. The stripe limit does
+not create them: configure multiple data paths or increase
+`connections_per_path` on one path. Small layers and single-connection routes
+use ordinary streams. Failed acquisitions retry whole layers; piece-level
+resume and RDMA transport are not implemented. See the [multi-link and striping configuration](https://github.com/scitrera/oci-relay/blob/main/docs/sparkrun-plugin.md)
+and [upstream range settings](https://github.com/scitrera/oci-relay/blob/main/docs/registry-source.md#parallel-upstream-ranges).
 
 The plugin sizes initial concurrency and buffer budgets from network hints,
-CPU, and available memory. It accounts for the effective 100 Gbps per-link
-limit on detected DGX Spark systems. These are starting limits, not a promise
-to saturate the link. More connections or a faster network help only while
-transfer is a significant part of the operation.
+CPU, and available memory. Qualified direct routes at 100 Gbps or above target
+**1 GiB of managed payload memory per process**, reduced for available memory
+and colocated roles. For eligible registry layers, the range downloader reserves
+one quarter of the source's selected budget, capped at **128 MiB**, within that
+budget. It reduces concurrency when fewer pieces fit. HTTP/2, TLS, and socket
+buffers remain additional overhead.
+
+The plugin accounts for the effective 100 Gbps per-link limit on detected DGX
+Spark systems. These are starting limits, not a promise to saturate the links.
+Registry-wide limits, disk I/O, hashing, and Docker import can still dominate;
+more connections help only while transfer is a significant part of the operation.
 
 Our measurements illustrate both the gains and that limit. The following
-comparisons used Linux arm64 DGX Spark hosts and two receivers. They measure
-image distribution/import, without model startup or inference:
+historical comparisons used Linux arm64 DGX Spark hosts and two receivers,
+before the newer striping and upstream range optimizations. They measure image
+distribution/import, without model startup or inference; they are not fresh
+v0.1.2 timings:
 
 | Workload | Previous SSH save/load path | OCI Relay |
 |---|---:|---:|
@@ -298,6 +351,32 @@ the download phase without improving total completion time. Two connections
 later improved mean complete provider time from 121.29 to 113.58 seconds in a
 four-run comparison, much less than the transfer-only improvement suggested.
 
+Recent work also reduces the CPU time spent preparing and verifying source
+bytes. Reads and native tar reconstruction overlap hashing and cache writes
+through a bounded pipeline: four 64 KiB frames per active acquisition, reserved
+inside the source memory budget. Large local files use direct reads on Linux;
+small native files stay buffered because opening each tiny file for direct I/O
+was slower in testing.
+
+For registry downloads, the downloader and source transfer cache now share one
+full-layer SHA-256 result. Previously, both hashed the same incoming blob. The
+shared verification barrier waits for the pipeline to finish before publishing
+a retained cache entry or completing the source stream. This removes a duplicate
+pass over the same bytes; it does not remove the independent receiver check.
+Standalone registry fetches still hash their input, disk replays are verified,
+and native tar reconstruction retains its CRC checks. The [source I/O guide](https://github.com/scitrera/oci-relay/blob/main/docs/source-selection.md#bulk-reads-and-source-pipelining)
+explains the pipeline and direct-read fallback.
+
+Docker import remains a separate cost. On qualified classic `overlay2`
+receivers, the plugin can use the release's bundled `unpigz` to decode missing
+gzip layers before giving Docker uncompressed layers. This does not require
+installing a system helper or reconfiguring the daemon. It verifies both the
+compressed blob digest and the uncompressed DiffID, and needs temporary disk
+space: the plugin's raw-layer scratch cap defaults to 64 GiB and is reduced by
+free-space checks that also account for Docker's import needs. It does not
+eliminate filesystem extraction or registration. See the [bundled decoder guide](https://github.com/scitrera/oci-relay/blob/main/docs/bundled-decoder.md)
+for eligibility, space limits, and fallback behavior.
+
 Integrity checks stay enabled throughout these optimizations. Transferred blobs
 must match their declared lengths and SHA-256 digests. Streaming verification
 withholds final completion until those checks pass. Receivers verify the imported
@@ -312,7 +391,8 @@ preparation, cache discovery, per-host transferred bytes and reuse, import,
 verification, and cleanup. Registry download bytes are reported separately from
 bytes delivered to receivers. Routine updates and quiet-phase heartbeats use a
 30-second cadence; phase changes and completion appear immediately. A full byte
-counter still leaves Docker import and final verification to finish.
+counter still leaves Docker import and final verification to finish. Verbose
+logs include each execution host's verified engine version and commit.
 
 The bundled plugin defaults on for Sparkrun's alpha channel and off for beta and
 stable, with explicit feature overrides available. Native store support currently
