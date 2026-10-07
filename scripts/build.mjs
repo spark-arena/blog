@@ -227,6 +227,12 @@ function renderMarkdown(markdown) {
       continue;
     }
 
+    if (line.trim().startsWith("<!--")) {
+      while (i < lines.length && !lines[i].includes("-->")) i += 1;
+      if (i < lines.length) i += 1;
+      continue;
+    }
+
     if (/^```/.test(line.trim())) {
       const lang = line.trim().slice(3).trim();
       const code = [];
@@ -284,23 +290,28 @@ function renderMarkdown(markdown) {
       continue;
     }
 
-    if (/^[-*]\s+/.test(line.trim())) {
+    const ordered = /^\d+\.\s+/.test(line.trim());
+    if (ordered || /^[-*]\s+/.test(line.trim())) {
+      const itemPattern = ordered ? /^\d+\.\s+/ : /^[-*]\s+/;
+      const start = ordered ? Number.parseInt(line.trim(), 10) : 1;
       const items = [];
-      while (i < lines.length && /^[-*]\s+/.test(lines[i].trim())) {
-        items.push(lines[i].trim().replace(/^[-*]\s+/, ""));
+      while (i < lines.length && itemPattern.test(lines[i].trim())) {
+        const parts = [lines[i].trim().replace(itemPattern, "")];
         i += 1;
+        // Wrapped prose belongs to its list item, not a separate paragraph.
+        while (
+          i < lines.length &&
+          /^\s{2,}\S/.test(lines[i]) &&
+          !/^(?:[-*]|\d+\.)\s+/.test(lines[i].trim())
+        ) {
+          parts.push(lines[i].trim());
+          i += 1;
+        }
+        items.push(parts.join(" "));
       }
-      out.push(`<ul>${items.map((item) => `<li>${renderInline(item)}</li>`).join("")}</ul>`);
-      continue;
-    }
-
-    if (/^\d+\.\s+/.test(line.trim())) {
-      const items = [];
-      while (i < lines.length && /^\d+\.\s+/.test(lines[i].trim())) {
-        items.push(lines[i].trim().replace(/^\d+\.\s+/, ""));
-        i += 1;
-      }
-      out.push(`<ol>${items.map((item) => `<li>${renderInline(item)}</li>`).join("")}</ol>`);
+      const tag = ordered ? "ol" : "ul";
+      const attributes = ordered && start !== 1 ? ` start="${start}"` : "";
+      out.push(`<${tag}${attributes}>${items.map((item) => `<li>${renderInline(item)}</li>`).join("")}</${tag}>`);
       continue;
     }
 
@@ -636,7 +647,9 @@ function pageTemplate({ title, description, content, isPost = false }) {
       border: 1px solid #273227;
       padding: 0.48rem 0.58rem;
       text-align: left;
-      white-space: nowrap;
+      white-space: normal;
+      min-width: 9rem;
+      overflow-wrap: anywhere;
     }
     .article th {
       color: #e8f6d8;
@@ -720,7 +733,7 @@ async function main() {
     const { metadata: frontmatter, body } = parseFrontmatter(raw);
 
     const title = extractTitle(body, path.basename(rel, ".md"));
-    const excerpt = extractExcerpt(body);
+    const excerpt = typeof frontmatter.description === "string" ? frontmatter.description : extractExcerpt(body);
     const readMinutes = estimateReadMinutes(body);
 
     const relNoExt = rel.replace(/\.md$/i, "");
@@ -810,7 +823,7 @@ async function main() {
     <section class="story-list">
       ${storiesHtml || "<p>No stories published yet.</p>"}
     </section>
-  `;
+  `.trim();
 
   const indexHtml = pageTemplate({
     title: "Tech Blog",
@@ -823,7 +836,11 @@ async function main() {
   console.log(`Built ${posts.length} post(s) into ${DIST_DIR}`);
 }
 
-main().catch((err) => {
-  console.error(err);
-  process.exit(1);
-});
+export { renderMarkdown };
+
+if (process.argv[1] && path.resolve(process.argv[1]) === __filename) {
+  main().catch((err) => {
+    console.error(err);
+    process.exit(1);
+  });
+}

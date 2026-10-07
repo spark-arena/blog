@@ -1,0 +1,337 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Moving fewer bytes: how OCI Relay speeds up Sparkrun image distribution | Spark Arena Tech Blog</title>
+  <meta name="description" content="How OCI Relay avoids full image archives, reuses layers across Docker storage backends, and overlaps registry pulls with distribution to speed up Sparkrun deployments." />
+  <style>
+    :root {
+      --bg: #050606;
+      --paper: #0f1410;
+      --text: #f4f7f4;
+      --muted: #95a295;
+      --line: #2a332a;
+      --brand: #76b900;
+      --brand-dark: #5f9700;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: Charter, "Bitstream Charter", "Sitka Text", Cambria, serif;
+      color: var(--text);
+      background:
+        radial-gradient(55% 45% at 15% 12%, rgba(88, 220, 90, 0.12), transparent 68%),
+        radial-gradient(50% 40% at 80% 18%, rgba(60, 140, 120, 0.08), transparent 70%),
+        radial-gradient(60% 60% at 45% 85%, rgba(35, 80, 70, 0.12), transparent 72%),
+        linear-gradient(160deg, #050606 0%, #070909 45%, #040505 100%);
+      line-height: 1.65;
+    }
+    .top-nav {
+      position: sticky;
+      top: 0;
+      z-index: 10;
+      background: rgba(8, 11, 8, 0.88);
+      backdrop-filter: saturate(180%) blur(6px);
+      border-bottom: 1px solid #253025;
+    }
+    .top-nav-inner {
+      max-width: 1080px;
+      margin: 0 auto;
+      padding: 0.85rem 1rem;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 1rem;
+    }
+    .logo {
+      margin: 0;
+      font-family: "IBM Plex Sans", "Segoe UI", Inter, Arial, sans-serif;
+      font-size: 1.1rem;
+      font-weight: 700;
+      letter-spacing: -0.01em;
+    }
+    .logo a {
+      color: #f3f7f3;
+      text-decoration: none;
+    }
+    .logo a span { color: var(--brand); }
+    .nav-links {
+      display: flex;
+      align-items: center;
+      gap: 0.9rem;
+      font-family: "IBM Plex Sans", "Segoe UI", Inter, Arial, sans-serif;
+      font-size: 0.9rem;
+    }
+    .brand-link {
+      color: #a9b6a9;
+      text-decoration: none;
+      border-bottom: 1px solid transparent;
+    }
+    .brand-link:hover {
+      color: #f3f7f3;
+      border-color: #4f634f;
+    }
+    .pill {
+      display: inline-flex;
+      align-items: center;
+      border: 1px solid #334133;
+      color: #dbe6db;
+      text-decoration: none;
+      padding: 0.25rem 0.62rem;
+      border-radius: 999px;
+      background: rgba(22, 30, 22, 0.75);
+    }
+    .pill:hover {
+      border-color: var(--brand);
+      color: #f3f7f3;
+    }
+    .container {
+      max-width: 760px;
+      margin: 0 auto;
+      padding: 2rem 1rem 4rem;
+    }
+    .tag-title {
+      font-family: "IBM Plex Sans", "Segoe UI", Inter, Arial, sans-serif;
+      margin: 0;
+      font-size: clamp(2rem, 6vw, 3rem);
+      letter-spacing: -0.03em;
+      line-height: 1.06;
+      color: #f3f7f3;
+    }
+    .tag-sub {
+      margin: 0.6rem 0 0;
+      color: #a0aea0;
+      font-family: "IBM Plex Sans", "Segoe UI", Inter, Arial, sans-serif;
+      font-size: 0.98rem;
+    }
+    .story-list { margin-top: 1.8rem; }
+    .story {
+      display: block;
+      text-decoration: none;
+      color: inherit;
+      background: var(--paper);
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      padding: 1rem 1rem 1.05rem;
+      margin: 0 0 0.95rem;
+      transition: border-color 130ms ease, transform 130ms ease;
+    }
+    .story:hover {
+      border-color: #4c6241;
+      transform: translateY(-1px);
+    }
+    .story-meta {
+      font-family: "IBM Plex Sans", "Segoe UI", Inter, Arial, sans-serif;
+      color: #97a497;
+      font-size: 0.82rem;
+      margin-bottom: 0.35rem;
+    }
+    .story h2 {
+      margin: 0;
+      font-family: "IBM Plex Sans", "Segoe UI", Inter, Arial, sans-serif;
+      font-size: clamp(1.2rem, 3.6vw, 1.55rem);
+      line-height: 1.2;
+      color: #f1f6f1;
+      letter-spacing: -0.01em;
+    }
+    .story p {
+      margin: 0.45rem 0 0;
+      color: #c7d1c7;
+      font-size: 1rem;
+    }
+    .tag-row {
+      margin-top: 0.62rem;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.42rem;
+    }
+    .tag {
+      font-family: "IBM Plex Sans", "Segoe UI", Inter, Arial, sans-serif;
+      font-size: 0.74rem;
+      line-height: 1;
+      color: #caefb0;
+      background: rgba(118, 185, 0, 0.12);
+      border: 1px solid rgba(118, 185, 0, 0.28);
+      padding: 0.28rem 0.5rem;
+      border-radius: 999px;
+    }
+    .article {
+      background: var(--paper);
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      padding: 2rem 1.35rem;
+    }
+    .article-head {
+      margin-bottom: 0.8rem;
+      padding-bottom: 0.6rem;
+      border-bottom: 1px solid #253025;
+      font-family: "IBM Plex Sans", "Segoe UI", Inter, Arial, sans-serif;
+      color: #9cab9c;
+      font-size: 0.88rem;
+    }
+    .article h1,
+    .article h2,
+    .article h3,
+    .article h4,
+    .article h5,
+    .article h6 {
+      color: #f3f7f3;
+      line-height: 1.22;
+      margin: 1.3em 0 0.5em;
+      font-family: "IBM Plex Sans", "Segoe UI", Inter, Arial, sans-serif;
+      letter-spacing: -0.02em;
+    }
+    .article h1 { margin-top: 0.1em; font-size: clamp(2rem, 6vw, 2.8rem); }
+    .article h2 { font-size: clamp(1.3rem, 4vw, 1.9rem); }
+    .article h3 { font-size: clamp(1.08rem, 3vw, 1.35rem); }
+    .article p,
+    .article li { color: #dde4dd; font-size: 1.08rem; }
+    .article a { color: #8fda4a; }
+    .article a:hover { color: #9fe55f; }
+    .article strong { color: #f8fff8; }
+    .article code {
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      background: #0c130d;
+      border: 1px solid #253225;
+      border-radius: 5px;
+      padding: 0.08rem 0.35rem;
+      font-size: 0.9em;
+    }
+    .article pre {
+      background: #0a0f0a;
+      color: #f3f3f3;
+      border-radius: 9px;
+      padding: 0.9rem 1rem;
+      overflow-x: auto;
+      margin: 1rem 0;
+    }
+    .article pre code {
+      border: 0;
+      background: transparent;
+      color: inherit;
+      padding: 0;
+    }
+    .article table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 1rem 0;
+      font-size: 0.95rem;
+      font-family: "IBM Plex Sans", "Segoe UI", Inter, Arial, sans-serif;
+      background: #0c130d;
+      border: 1px solid #273227;
+      border-radius: 8px;
+      overflow: hidden;
+      display: block;
+      overflow-x: auto;
+    }
+    .article thead tr {
+      background: rgba(118, 185, 0, 0.12);
+    }
+    .article th,
+    .article td {
+      border: 1px solid #273227;
+      padding: 0.48rem 0.58rem;
+      text-align: left;
+      white-space: normal;
+      min-width: 9rem;
+      overflow-wrap: anywhere;
+    }
+    .article th {
+      color: #e8f6d8;
+      font-weight: 700;
+    }
+    .article td {
+      color: #dde4dd;
+    }
+    .article hr { border: 0; border-top: 1px solid #273227; margin: 1.6rem 0; }
+    .article img {
+      max-width: 100%;
+      height: auto;
+      border: 1px solid #273227;
+      border-radius: 10px;
+      background: #0c130d;
+      padding: 0.35rem;
+      margin: 0.7rem 0 1rem;
+    }
+    .footer {
+      margin-top: 1.8rem;
+      color: #8f9f8f;
+      text-align: center;
+      font-family: "IBM Plex Sans", "Segoe UI", Inter, Arial, sans-serif;
+      font-size: 0.85rem;
+    }
+    @media (max-width: 680px) {
+      .container { padding-top: 1.35rem; }
+      .article { padding: 1.2rem 0.9rem; }
+    }
+  </style>
+</head>
+<body>
+  <header class="top-nav">
+    <div class="top-nav-inner">
+      <h1 class="logo"><a href="/"><span>Spark Arena</span> Tech Blog</a></h1>
+      <div class="nav-links">
+        <a class="brand-link" href="/">Back to all stories</a>
+        <a class="pill" href="https://spark-arena.com/leaderboard">Leaderboard</a>
+      </div>
+    </div>
+  </header>
+  <main class="container">
+    <article class="article">
+      <div class="article-head">By dbsci · 13 min read<div class="tag-row"><span class="tag">sparkrun</span><span class="tag">oci-relay</span><span class="tag">containers</span><span class="tag">networking</span><span class="tag">dgx-spark</span></div></div>
+      <h1>Moving fewer bytes: how OCI Relay speeds up Sparkrun image distribution</h1>
+<p><em>October 6, 2026. Based on the OCI Relay v0.1.0 engine and Sparkrun&#39;s <code>develop-next</code> integration, including the latest plugin updates.</em></p>
+<p>A fast network does not automatically make a large container image quick to deploy. Before the first byte reaches another machine, the source may need to download, unpack, reconstruct, or compress layers. After the last byte arrives, Docker still has to finish importing them. On a cluster running large inference images, those steps can take much longer than the network transfer itself.</p>
+<p><a href="https://github.com/scitrera/oci-relay" target="_blank" rel="noopener noreferrer">OCI Relay</a> is our answer to that problem in Sparkrun. It distributes images from local Docker stores or remote registries, checks what each destination already has, and transfers the missing layers through verified, bounded streams. The Sparkrun plugin coordinates the operation; a Go binary handles the data transfer on participating hosts.</p>
+<p>In one local-image comparison, distributing a roughly 25 GB image to two empty Docker stores fell from about four minutes with SSH save/load to about two minutes with the native relay source. With most layers already cached, the improvement can be much larger. The reason starts with the work the old path had to repeat.</p>
+<p>Sparkrun&#39;s previous distribution path was straightforward:</p>
+<pre><code class="language-sh">docker save IMAGE | ssh HOST docker load</code></pre>
+<p>Sparkrun first ensured that the source had the image. It compared image identities, skipped destinations already holding the complete image, and ran the remaining host transfers in parallel. That gave us a useful baseline: streaming transfers, existing SSH access, and no separate registry service to operate.</p>
+<p>The limitation was the archive. Each destination needing an update received a complete image export through its own pipeline. Docker could reuse existing layers during import, but their archive bytes still crossed the network. A destination with a large cached base and one missing layer could therefore receive nearly the same archive as an empty destination.</p>
+<p>When the image came from a remote registry, another dependency came first: Docker had to pull and import it on the source before Sparkrun could export it to the other nodes. Source preparation, network transfer, and destination import all contributed to the delay.</p>
+<p>OCI Relay changes the unit of distribution from an image archive to requested image layers. It resolves the image metadata, establishes which layers each receiver can reuse, and serves the remaining blobs on demand. Each receiver provides a temporary loopback registry through which its Docker daemon imports the image.</p>
+<p><img src="/posts/4-oci-relay/img/oci-relay-topology.svg" alt="Sparkrun coordinates a source and receiver relays; receivers negotiate cached layers and request missing content over authenticated HTTP/2 before Docker imports locally." loading="lazy" /></p>
+<p>The plugin handles source selection, executable deployment, credentials, network routes, resource limits, progress, and cleanup. Docker continues to own image installation. Normal operation requires no daemon restart, storage-driver migration, or change to Docker&#39;s download settings.</p>
+<p>For each operation, Sparkrun starts one source relay, plus a receiver relay on each target, using its existing host connections to stage binaries and session credentials. The roles can share a machine: a delegated head node can fetch from a registry and also receive the image into its own Docker store. Receivers connect to the source; they do not exchange layers with one another. The operation needs no persistent relay service or cluster-wide peer directory.</p>
+<p>The relays use HTTP/2 with mutual TLS: both ends authenticate with certificates issued for that operation. Multiple requests can share a connection, including metadata, concurrent layer streams, cache negotiation, and progress reports. In direct mode, receiver connections reach the source listener over TCP. SSH forwarding and SSH stdio carry the same authenticated protocol when direct connectivity is unavailable. Direct data transfers can bypass the controller when it is not the source; forwarded and stdio traffic is bridged through the controller.</p>
+<p>The conversation between a receiver and the source proceeds in stages:</p>
+<ol><li><strong>Identify the image.</strong> The receiver obtains the pinned manifest, config, and platform from the source. If its destination tag already resolves to the same image after backend-aware comparison, it reports success with zero layer bytes transferred.</li><li><strong>Agree on what is missing.</strong> Otherwise, the receiver checks its local store and sends its proposed image representation and per-layer availability: reusable unpacked chain, locally available blob, or missing content. The source validates the proposal and acknowledges the exact manifest and missing-byte total. Each receiver can reach a different agreement for the same source image.</li><li><strong>Request layers as needed.</strong> The receiver starts Docker&#39;s pull through its loopback registry. Cached content is handled locally; missing blobs are requested from the source by digest. A receiver with one missing layer need not request the layers another receiver is downloading.</li><li><strong>Report completion.</strong> Receivers send progress and final results back to the source over authenticated requests. Completion is tied to the pinned image and, when used, the negotiated manifest. Sparkrun collects the outcomes and cleans up the temporary processes, credentials, and helper resources.</li></ol>
+<p>The first major improvement is getting useful source bytes sooner. For a local image, the plugin detects the source&#39;s storage backend and chooses a supported adapter. On qualified classic <code>overlay2</code> stores, the relay reads Docker&#39;s tar-split metadata and layer files through read-only mounts. Using the upstream tar-split library, it reconstructs the original uncompressed layer tar stream on demand, including headers, whiteouts, file order, and padding.</p>
+<p>That exact reconstruction matters. Creating a new tar archive from the same extracted files can produce different bytes and a different layer hash. The native adapter preserves the original byte identity while avoiding Docker&#39;s push-compression pass and a full-image export staging step. Preparation reads metadata; layer payloads are read when requested. In the large local-image test, source readiness took about 1.5 seconds.</p>
+<p>For Docker&#39;s containerd image store, the native adapter reads retained blobs from its content store. Those blobs may already be compressed, so it can serve the existing representation without unpacking and recompressing it. Both native adapters retain the source image for the operation. Public Docker push/export adapters and OCI-layout input remain available when appropriate; automatic selection checks capabilities and permissions before choosing a source. Native access defaults on in the plugin and can be disabled.</p>
+<p>Remote images take a different path. The registry source resolves a tag to one platform&#39;s manifest, pins the manifest and configuration, and fetches requested blobs by digest. It streams the registry&#39;s existing compressed bytes to receivers as they arrive. The source machine does not need to import the image unless it is also a destination.</p>
+<p>This overlaps the registry download with cluster distribution and removes the source&#39;s pull/import/export sequence. Registry credentials stay on the fetching host. Receivers use separate operation credentials to communicate with the relay.</p>
+<p>The integration runs before Sparkrun&#39;s ordinary source pull. It handles missing images, explicit fresh pulls, and controller-local <code>:latest</code> refreshes—even when the controller already has an older copy. That last case closed a visible gap: a preliminary Docker refresh could previously run for a minute or two before the relay started reporting progress. Existing versioned local images and unforced delegated-source copies retain Sparkrun&#39;s established local-image policy, and offline operations stay offline. The <a href="https://github.com/scitrera/oci-relay/blob/main/docs/registry-source.md" target="_blank" rel="noopener noreferrer">registry-source guide</a> describes the selection rules and the limited cached-image fallback when a best-effort refresh cannot resolve registry metadata before transfer begins.</p>
+<p>The next improvement is deciding what each receiver actually needs. Consider an image consisting of a large runtime base plus a small application layer. If a receiver already has the base, sending the complete archive spends network and source I/O on content that is already there. OCI Relay inventories local images, validates reusable content, and negotiates the missing layers for each receiver independently.</p>
+<p>Doing that across Docker storage backends requires care. Several hashes describe different things:</p>
+<table><thead><tr><th>Identity</th><th>What it identifies</th></tr></thead><tbody><tr><td>Blob digest</td><td>The exact transferred bytes, such as a gzip-compressed layer</td></tr><tr><td>DiffID</td><td>The exact uncompressed layer tar stream</td></tr><tr><td>Layer chain</td><td>A layer together with its ordered parent history</td></tr><tr><td>Config digest</td><td>The exact image configuration, including its ordered DiffIDs</td></tr><tr><td>Manifest digest</td><td>The exact document describing the config and layer blobs</td></tr></tbody></table>
+<p>A compressed layer and its uncompressed representation have different blob digests but the same DiffID. Docker&#39;s reported image ID can also mean different things across the tested backends: a config digest on classic <code>overlay2</code>, or a manifest/index digest on the containerd <code>overlayfs</code> image store. The same image can therefore produce different <code>docker image inspect</code> IDs on two nodes. Those IDs hash different objects; the mismatch does not by itself establish that the image configuration or layer contents differ.</p>
+<p>This could defeat the old whole-image shortcut. Sparkrun also checks shared registry <code>RepoDigests</code>, so different backends do not force a copy when that common identifier is available. But locally built or save/load-transferred images may lack it. When the Docker IDs differ and there is no shared registry digest, the builtin path classifies the target as needing synchronization and sends the complete <code>docker save</code> archive—even if the target already contains the same image. Loading that archive need not make the backend-specific IDs equal, so a later run can encounter the same mismatch again.</p>
+<p>OCI Relay normalizes the <strong>comparison</strong> by resolving backend-specific metadata to the image&#39;s config identity, target platform, and ordered uncompressed layer DiffIDs. It keeps the original blob and manifest hashes for verification. That lets it recognize an already-installed image across <code>overlay2</code> and containerd <code>overlayfs</code> without requiring their Docker IDs or layer encodings to match.</p>
+<p>For example, consider two nodes using different stores and holding an image with layers A, B, and C. Assume their Docker IDs differ and they have no shared <code>RepoDigest</code> for the builtin shortcut:</p>
+<table><thead><tr><th>Destination state</th><th>Builtin SSH save/load</th><th>OCI Relay with qualified cache access</th></tr></thead><tbody><tr><td>Same config and layers A, B, C already installed</td><td>Send the complete archive because the IDs differ</td><td>Recognize the image and transfer zero layer bytes</td></tr><tr><td>Updating to A, B, C, D with only D missing</td><td>Send the complete updated archive</td><td>Reuse A, B, C and transfer D</td></tr><tr><td>All layers available, but image config/tag needs updating</td><td>Send the complete archive</td><td>Exchange metadata and install the image using local layers</td></tr></tbody></table>
+<p>Zero layer bytes still allows metadata and coordination traffic. A metadata update can also require Docker import work. Layer reuse depends on validated local availability: the relay does not equate different configurations merely because their extracted files look alike.</p>
+<p>Each relay therefore understands its local store. A verified matching parent chain can let Docker reuse unpacked state. A matching layer found under a different parent can provide local bytes, while still requiring Docker to unpack them into the new chain. Discovery can combine layers from several local images; containerd receivers can also find exact retained blobs directly. The scan has a time budget, and anything it cannot establish remains a download requirement.</p>
+<p>When necessary, a receiver negotiates a manifest describing its available local layer representations. The image configuration, layer order, and DiffIDs remain unchanged, while the installed manifest digest may differ from the source&#39;s. Both manifest identities are reported. This supports single-platform tagged image installation; it does not preserve signatures or referrers attached to a manifest that has been rewritten. The <a href="https://github.com/scitrera/oci-relay/blob/main/docs/storage-compatibility.md" target="_blank" rel="noopener noreferrer">storage compatibility guide</a> documents those boundaries.</p>
+<p>Sharing source work provides another benefit. Receivers requesting the same blob at overlapping times can read from one source acquisition through a bounded memory ring. This can avoid reconstructing or downloading the same layer once per destination. Backpressure limits active acquisitions and buffered data, and lagging readers have a bounded wait before they must retry.</p>
+<p>That sharing has a practical limit: the ring eventually discards old bytes. A late receiver can require a replay or another registry download. Optional disk retention keeps verified compressed registry blobs for the operation; it defaults to zero and uses ordinary buffered file I/O. Memory-ring budgets, disk-retention budgets, Docker&#39;s own storage, and the operating system&#39;s page cache are separate. A configured relay buffer limit is not a limit on total process memory.</p>
+<p>The implementation reuses small, useful upstream components: Dragonfly&#39;s rolling statistics and adapted OCI reference handling, Moby&#39;s Engine client, upstream tar-split, and a backpressure semaphore that limits concurrent layer acquisitions. Nydus informed parts of the design, but OCI Relay does not install a new filesystem or snapshotter. <a href="https://github.com/scitrera/oci-relay/blob/main/THIRD_PARTY_NOTICES.md" target="_blank" rel="noopener noreferrer">Third-party notices</a> describe the code reuse.</p>
+<p>Transfer concurrency also improves on a single archive stream per destination. Independent missing layers can move concurrently over authenticated HTTP/2. The plugin prefers a working direct route and can use SSH forwarding or SSH stdio when needed. Explicitly configured multiple data paths allow whole-layer requests to use separate network interfaces without bonding. Additional HTTP/2 connections can also reduce contention on one path.</p>
+<p>The current scheduler assigns whole layers. Its 64 KiB buffer frames are not independently downloaded pieces, and a single large layer is not striped across both NICs. Actual concurrency depends on missing layers and Docker&#39;s download demand, as well as the relay&#39;s limits. RDMA and HTTP Range resume are not implemented.</p>
+<p>The plugin sizes initial concurrency and buffer budgets from network hints, CPU, and available memory. It accounts for the effective 100 Gbps per-link limit on detected DGX Spark systems. These are starting limits, not a promise to saturate the link. More connections or a faster network help only while transfer is a significant part of the operation.</p>
+<p>Our measurements illustrate both the gains and that limit. The following comparisons used Linux arm64 DGX Spark hosts and two receivers. They measure image distribution/import, without model startup or inference:</p>
+<table><thead><tr><th>Workload</th><th>Previous SSH save/load path</th><th>OCI Relay</th></tr></thead><tbody><tr><td>Roughly 25 GB image already on the source; empty destinations</td><td>237–239 s</td><td>120 s with the native classic source</td></tr><tr><td>Fresh registry image; source and destinations initially empty</td><td>381 s, including the source pull</td><td>263 s with no registry disk cache</td></tr><tr><td>Same registry image with only 313 MB of compressed layers missing</td><td>159 s, with the source already ready</td><td>15 s with no registry disk cache</td></tr></tbody></table>
+<p>The first comparison was roughly a halving of elapsed time. The fresh registry case saved about 31%. The mostly cached case saved about 90%, even though its SSH baseline was given a fully populated source and paid no registry-pull cost. In those registry trials, overlapping receivers shared each needed upstream blob without a second download. That is an observed result, not an unconditional single-download guarantee.</p>
+<p>Timing boundaries differ between experiments: the local-image row excludes binary deployment, preliminary probes, and final verification/cleanup; the registry rows include provider setup and operation cleanup. The local and registry experiments also used different pinned revisions of the image. Compare methods within each row. Sample counts were small, registry bandwidth varied, and OS page caches were not flushed. Independent per-node registry pulls had comparable latency to the registry relay in the measured trials.</p>
+<p>Separate tests covered all four classic/containerd source–receiver combinations with a four-layer, roughly 1 GiB workload. Across 32 trials, relay elapsed time was 23–53% lower for empty destinations and 49–70% lower with three layers cached. Every partial-cache trial transferred only the missing layer, including transfers between different stores. These are workload-specific measurements; small transfers can lose time to discovery and setup. The <a href="https://github.com/scitrera/oci-relay/blob/main/docs/validation.md" target="_blank" rel="noopener noreferrer">validation record</a> records the tested scope and results.</p>
+<p>The large-image tests also showed why network speed alone is an incomplete target. In the default native-source run, receivers finished downloading at about 45 seconds, while extraction and registration continued to roughly 112–117 seconds. A separate experiment increasing download concurrency shortened the download phase without improving total completion time. Two connections later improved mean complete provider time from 121.29 to 113.58 seconds in a four-run comparison, much less than the transfer-only improvement suggested.</p>
+<p>Integrity checks stay enabled throughout these optimizations. Transferred blobs must match their declared lengths and SHA-256 digests. Streaming verification withholds final completion until those checks pass. Receivers verify the imported configuration, platform, ordered DiffIDs, and expected manifest representation before assigning the requested tag. Hash failures fail the operation; they do not authorize switching to a different image. Existing unpacked cache hits rely on Docker&#39;s immutable, previously verified store, rather than rehashing every cached filesystem before every operation.</p>
+<p>Users can now see where the time goes. Sparkrun reports source selection, preparation, cache discovery, per-host transferred bytes and reuse, import, verification, and cleanup. Registry download bytes are reported separately from bytes delivered to receivers. Routine updates and quiet-phase heartbeats use a 30-second cadence; phase changes and completion appear immediately. A full byte counter still leaves Docker import and final verification to finish.</p>
+<p>The bundled plugin defaults on for Sparkrun&#39;s alpha channel and off for beta and stable, with explicit feature overrides available. Native store support currently requires qualified rootful Linux Docker 29+ classic <code>overlay2</code> or containerd <code>overlayfs</code> configurations. The real-engine matrix covers classic Docker 29.1.3/29.2.1 and containerd Docker 29.2.1; accepting a newer version still requires the layout and integrity checks to pass. See the <a href="https://github.com/scitrera/oci-relay/blob/main/docs/sparkrun-plugin.md" target="_blank" rel="noopener noreferrer">plugin guide</a> for configuration and the <a href="https://github.com/scitrera/oci-relay/blob/main/docs/development.md" target="_blank" rel="noopener noreferrer">development guide</a> for an editable <code>source dev.sh</code> setup.</p>
+<p>For Sparkrun, the useful change is visible during everyday iteration: updating an image can reuse the cluster&#39;s existing layers, fetching a new image can overlap with distribution, and moving a local image can begin without preparing a full export. The remaining time is measurable—whether it is registry bandwidth, source I/O, or Docker import—so further optimization can target the work that actually keeps the next run waiting.</p>
+    </article>
+    <div class="footer">Spark Arena community technical writing</div>
+  </main>
+</body>
+</html>

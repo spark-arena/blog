@@ -1,0 +1,338 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>One Command, Three Engines: Turning a Day-Zero Model Post Into Three Recipes | Spark Arena Tech Blog</title>
+  <meta name="description" content="Recently, Saiyam Pathakpublished [Running Qwen3.8-27B on DGX Spark](https://blog.kubesimplify.com/qwen3-8-27b-on-dgx-spark) — an excellent day-zero writeup. The weights landed on August 1..." />
+  <style>
+    :root {
+      --bg: #050606;
+      --paper: #0f1410;
+      --text: #f4f7f4;
+      --muted: #95a295;
+      --line: #2a332a;
+      --brand: #76b900;
+      --brand-dark: #5f9700;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: Charter, "Bitstream Charter", "Sitka Text", Cambria, serif;
+      color: var(--text);
+      background:
+        radial-gradient(55% 45% at 15% 12%, rgba(88, 220, 90, 0.12), transparent 68%),
+        radial-gradient(50% 40% at 80% 18%, rgba(60, 140, 120, 0.08), transparent 70%),
+        radial-gradient(60% 60% at 45% 85%, rgba(35, 80, 70, 0.12), transparent 72%),
+        linear-gradient(160deg, #050606 0%, #070909 45%, #040505 100%);
+      line-height: 1.65;
+    }
+    .top-nav {
+      position: sticky;
+      top: 0;
+      z-index: 10;
+      background: rgba(8, 11, 8, 0.88);
+      backdrop-filter: saturate(180%) blur(6px);
+      border-bottom: 1px solid #253025;
+    }
+    .top-nav-inner {
+      max-width: 1080px;
+      margin: 0 auto;
+      padding: 0.85rem 1rem;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 1rem;
+    }
+    .logo {
+      margin: 0;
+      font-family: "IBM Plex Sans", "Segoe UI", Inter, Arial, sans-serif;
+      font-size: 1.1rem;
+      font-weight: 700;
+      letter-spacing: -0.01em;
+    }
+    .logo a {
+      color: #f3f7f3;
+      text-decoration: none;
+    }
+    .logo a span { color: var(--brand); }
+    .nav-links {
+      display: flex;
+      align-items: center;
+      gap: 0.9rem;
+      font-family: "IBM Plex Sans", "Segoe UI", Inter, Arial, sans-serif;
+      font-size: 0.9rem;
+    }
+    .brand-link {
+      color: #a9b6a9;
+      text-decoration: none;
+      border-bottom: 1px solid transparent;
+    }
+    .brand-link:hover {
+      color: #f3f7f3;
+      border-color: #4f634f;
+    }
+    .pill {
+      display: inline-flex;
+      align-items: center;
+      border: 1px solid #334133;
+      color: #dbe6db;
+      text-decoration: none;
+      padding: 0.25rem 0.62rem;
+      border-radius: 999px;
+      background: rgba(22, 30, 22, 0.75);
+    }
+    .pill:hover {
+      border-color: var(--brand);
+      color: #f3f7f3;
+    }
+    .container {
+      max-width: 760px;
+      margin: 0 auto;
+      padding: 2rem 1rem 4rem;
+    }
+    .tag-title {
+      font-family: "IBM Plex Sans", "Segoe UI", Inter, Arial, sans-serif;
+      margin: 0;
+      font-size: clamp(2rem, 6vw, 3rem);
+      letter-spacing: -0.03em;
+      line-height: 1.06;
+      color: #f3f7f3;
+    }
+    .tag-sub {
+      margin: 0.6rem 0 0;
+      color: #a0aea0;
+      font-family: "IBM Plex Sans", "Segoe UI", Inter, Arial, sans-serif;
+      font-size: 0.98rem;
+    }
+    .story-list { margin-top: 1.8rem; }
+    .story {
+      display: block;
+      text-decoration: none;
+      color: inherit;
+      background: var(--paper);
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      padding: 1rem 1rem 1.05rem;
+      margin: 0 0 0.95rem;
+      transition: border-color 130ms ease, transform 130ms ease;
+    }
+    .story:hover {
+      border-color: #4c6241;
+      transform: translateY(-1px);
+    }
+    .story-meta {
+      font-family: "IBM Plex Sans", "Segoe UI", Inter, Arial, sans-serif;
+      color: #97a497;
+      font-size: 0.82rem;
+      margin-bottom: 0.35rem;
+    }
+    .story h2 {
+      margin: 0;
+      font-family: "IBM Plex Sans", "Segoe UI", Inter, Arial, sans-serif;
+      font-size: clamp(1.2rem, 3.6vw, 1.55rem);
+      line-height: 1.2;
+      color: #f1f6f1;
+      letter-spacing: -0.01em;
+    }
+    .story p {
+      margin: 0.45rem 0 0;
+      color: #c7d1c7;
+      font-size: 1rem;
+    }
+    .tag-row {
+      margin-top: 0.62rem;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.42rem;
+    }
+    .tag {
+      font-family: "IBM Plex Sans", "Segoe UI", Inter, Arial, sans-serif;
+      font-size: 0.74rem;
+      line-height: 1;
+      color: #caefb0;
+      background: rgba(118, 185, 0, 0.12);
+      border: 1px solid rgba(118, 185, 0, 0.28);
+      padding: 0.28rem 0.5rem;
+      border-radius: 999px;
+    }
+    .article {
+      background: var(--paper);
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      padding: 2rem 1.35rem;
+    }
+    .article-head {
+      margin-bottom: 0.8rem;
+      padding-bottom: 0.6rem;
+      border-bottom: 1px solid #253025;
+      font-family: "IBM Plex Sans", "Segoe UI", Inter, Arial, sans-serif;
+      color: #9cab9c;
+      font-size: 0.88rem;
+    }
+    .article h1,
+    .article h2,
+    .article h3,
+    .article h4,
+    .article h5,
+    .article h6 {
+      color: #f3f7f3;
+      line-height: 1.22;
+      margin: 1.3em 0 0.5em;
+      font-family: "IBM Plex Sans", "Segoe UI", Inter, Arial, sans-serif;
+      letter-spacing: -0.02em;
+    }
+    .article h1 { margin-top: 0.1em; font-size: clamp(2rem, 6vw, 2.8rem); }
+    .article h2 { font-size: clamp(1.3rem, 4vw, 1.9rem); }
+    .article h3 { font-size: clamp(1.08rem, 3vw, 1.35rem); }
+    .article p,
+    .article li { color: #dde4dd; font-size: 1.08rem; }
+    .article a { color: #8fda4a; }
+    .article a:hover { color: #9fe55f; }
+    .article strong { color: #f8fff8; }
+    .article code {
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      background: #0c130d;
+      border: 1px solid #253225;
+      border-radius: 5px;
+      padding: 0.08rem 0.35rem;
+      font-size: 0.9em;
+    }
+    .article pre {
+      background: #0a0f0a;
+      color: #f3f3f3;
+      border-radius: 9px;
+      padding: 0.9rem 1rem;
+      overflow-x: auto;
+      margin: 1rem 0;
+    }
+    .article pre code {
+      border: 0;
+      background: transparent;
+      color: inherit;
+      padding: 0;
+    }
+    .article table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 1rem 0;
+      font-size: 0.95rem;
+      font-family: "IBM Plex Sans", "Segoe UI", Inter, Arial, sans-serif;
+      background: #0c130d;
+      border: 1px solid #273227;
+      border-radius: 8px;
+      overflow: hidden;
+      display: block;
+      overflow-x: auto;
+    }
+    .article thead tr {
+      background: rgba(118, 185, 0, 0.12);
+    }
+    .article th,
+    .article td {
+      border: 1px solid #273227;
+      padding: 0.48rem 0.58rem;
+      text-align: left;
+      white-space: normal;
+      min-width: 9rem;
+      overflow-wrap: anywhere;
+    }
+    .article th {
+      color: #e8f6d8;
+      font-weight: 700;
+    }
+    .article td {
+      color: #dde4dd;
+    }
+    .article hr { border: 0; border-top: 1px solid #273227; margin: 1.6rem 0; }
+    .article img {
+      max-width: 100%;
+      height: auto;
+      border: 1px solid #273227;
+      border-radius: 10px;
+      background: #0c130d;
+      padding: 0.35rem;
+      margin: 0.7rem 0 1rem;
+    }
+    .footer {
+      margin-top: 1.8rem;
+      color: #8f9f8f;
+      text-align: center;
+      font-family: "IBM Plex Sans", "Segoe UI", Inter, Arial, sans-serif;
+      font-size: 0.85rem;
+    }
+    @media (max-width: 680px) {
+      .container { padding-top: 1.35rem; }
+      .article { padding: 1.2rem 0.9rem; }
+    }
+  </style>
+</head>
+<body>
+  <header class="top-nav">
+    <div class="top-nav-inner">
+      <h1 class="logo"><a href="/"><span>Spark Arena</span> Tech Blog</a></h1>
+      <div class="nav-links">
+        <a class="brand-link" href="/">Back to all stories</a>
+        <a class="pill" href="https://spark-arena.com/leaderboard">Leaderboard</a>
+      </div>
+    </div>
+  </header>
+  <main class="container">
+    <article class="article">
+      <div class="article-head">By dbsci · 7 min read<div class="tag-row"><span class="tag">sparkrun</span><span class="tag">benchmarking</span><span class="tag">recipes</span><span class="tag">vllm</span><span class="tag">sglang</span><span class="tag">llama.cpp</span><span class="tag">dgx-spark</span></div></div>
+      <h1>One Command, Three Engines: Turning a Day-Zero Model Post Into Three Recipes</h1>
+<p>Recently, Saiyam Pathakpublished <a href="https://blog.kubesimplify.com/qwen3-8-27b-on-dgx-spark" target="_blank" rel="noopener noreferrer">Running Qwen3.8-27B on DGX Spark</a> — an excellent day-zero writeup. The weights landed on August 14; the model was serving within the hour and four engines were measured by the time most people had finished reading the model card. If you have a Spark, go read it.</p>
+<p>The post used <a href="https://sparkrun.dev" target="_blank" rel="noopener noreferrer">sparkrun</a> for the vLLM leg, and said something nice about it that I want to take seriously rather than just enjoy:</p>
+<p>&gt; sparkrun recipes made a day-zero model a config-file edit, not an afternoon of dependency fighting.</p>
+<p>That&#39;s the idea! But it only landed for one of the four engines in that post. The llama.cpp leg was a hand-written <code>docker run</code> with a bind mount and an <code>--entrypoint</code> override. The benchmarks were three different tools: <code>llama-bench</code> inside a container for llama.cpp, <code>llama-benchy</code> over HTTP for vLLM and SGLang, <code>curl | jq</code> against Ollama&#39;s eval counters. Every leg had its own start command, its own teardown, and its own definition of &quot;prefill&quot;.</p>
+<p>None of that was wrong. It is what everyone has always done. But three of those four engines are ones sparkrun already drives, and the config-file-edit property the post liked about the vLLM leg was available for all of them. So this post is the follow-up: <strong>the same comparison, expressed as three recipes and one command.</strong></p>
+<p>So let&#39;s start with the end first: the three commands that reproduce the original post&#39;s tables.</p>
+<pre><code class="language-bash">sparkrun benchmark perf @community/blog-qwen3.8-27b-fp8-vllm-dbsci        --profile @community/blog-qwen3.8-27b-dbsci
+sparkrun benchmark perf @community/blog-qwen3.8-27b-fp8-sglang-dbsci      --profile @community/blog-qwen3.8-27b-dbsci
+sparkrun benchmark perf @community/blog-qwen3.8-27b-q4kxl-llama-cpp-dbsci --profile @community/blog-qwen3.8-27b-dbsci</code></pre>
+<p>Three lines. One reference changed between them. That&#39;s it.</p>
+<p>Each one launches the workload, waits for it to come up healthy, runs the benchmark ladder against it, stops the workload, and writes the results.</p>
+<p>And that&#39;s the point. sparkrun is meant to make running inference or doing this kind of benchmarking far easier. The other benefit of the standardization of recipes in sparkrun is that it becomes easier to do parametric studies and optimization without having to rewrite the same sort of scripts and boilerplate every time. And of course, we&#39;ve got skills for your agent, so you can get your agent to help with preparing recipes, managing your spark(s), and optimizing your models.</p>
+<p>The <code>@community/blog-qwen3.8-27b-dbsci</code> profile is a companion profile that ships beside the recipes that captures the benchmarking configuration; it is shown in full below.</p>
+<p>The recipes are <a href="https://github.com/spark-arena/community-recipe-registry/tree/main/recipes/blog-qwen3.8-27b/dbsci" target="_blank" rel="noopener noreferrer">in the community registry</a>. Note that they are transcriptions of the original post&#39;s configuration, not re-tunings of it.</p>
+<p>Before we get started, sparkrun is a relatively young open source project, so updates are frequent. Make sure that you&#39;re using the latest version whether for this article or whenever you might encounter issues.</p>
+<p>Installing sparkrun: <code>uvx sparkrun setup</code> (requires uv) Updating sparkrun: <code>sparkrun update</code></p>
+<p>Now back to the article.</p>
+<h2>What actually changes between engines</h2>
+<p>Writing three recipes instead of three <code>docker run</code> lines forces you to be explicit about what you are <em>not</em> holding constant. Here is the whole set, side by side — everything above the rule is identical by construction, everything below it is the actual answer to &quot;what changes&quot;.</p>
+<table><thead><tr><th></th><th>vLLM</th><th>SGLang</th><th>llama.cpp</th></tr></thead><tbody><tr><td><code>port</code></td><td>8000</td><td>8000</td><td>8000</td></tr><tr><td><code>served_model_name</code></td><td><code>qwen3.8-27b</code></td><td><code>qwen3.8-27b</code></td><td><code>qwen3.8-27b</code></td></tr><tr><td><code>benchmark.tokenizer</code></td><td><code>Qwen/Qwen3.8-27B</code></td><td><code>Qwen/Qwen3.8-27B</code></td><td><code>Qwen/Qwen3.8-27B</code></td></tr><tr><td>nodes</td><td>1</td><td>1</td><td>1</td></tr><tr><td>—</td><td>—</td><td>—</td><td>—</td></tr><tr><td><code>runtime</code></td><td><code>vllm</code></td><td><code>sglang</code></td><td><code>llama-cpp</code></td></tr><tr><td><code>model</code></td><td><code>Qwen/Qwen3.8-27B-FP8</code></td><td><code>Qwen/Qwen3.8-27B-FP8</code></td><td><code>unsloth/Qwen3.8-27B-GGUF:Q4_K_XL</code></td></tr><tr><td>weights on the wire</td><td>28.75 GB</td><td>28.75 GB</td><td>16.68 GiB</td></tr><tr><td><code>container</code></td><td><code>dgx-vllm-eugr-nightly:latest</code></td><td><code>lmsysorg/sglang:latest-cu130</code></td><td><code>dgx-llama-cpp:latest</code></td></tr><tr><td><code>max_model_len</code></td><td>131072</td><td>131072</td><td>409600 (total, ÷ 10 slots)</td></tr><tr><td>memory knob</td><td><code>gpu_memory_utilization: 0.8</code></td><td><code>gpu_memory_utilization: 0.8</code> → <code>--mem-fraction-static</code></td><td><code>n_gpu_layers: 99</code></td></tr><tr><td>KV</td><td><code>kv_cache_dtype: fp8</code></td><td><code>kv_cache_dtype: fp8</code></td><td>GGUF default</td></tr><tr><td>speculation</td><td>none</td><td>NEXTN, 3 steps, 4 draft tokens</td><td>none</td></tr></tbody></table>
+<p>And the profile all three are pointed at, which is a transcription of the original post&#39;s own llama-benchy call:</p>
+<pre><code class="language-yaml"># benchmarking/blog-qwen3.8-27b-dbsci.yaml
+framework: llama-benchy
+category: performance
+args:
+  depth: [ 0, 16384, 32768 ]
+  pp: [ 2048 ]
+  tg: [ 128 ]
+  concurrency: [ 1, 2, 5, 10 ]
+  prefix_caching: true</code></pre>
+<p>Twelve cells. Naming it is what makes these runs land <em>beside</em> the original post&#39;s tables instead of beside a different experiment that happens to use the same model.</p>
+<p>Three of those rows deserve a sentence each — two because forcing parity would mean benchmarking a configuration nobody runs, and one because leaving it out breaks the comparison without breaking anything visible.</p>
+<p><strong>Different weights, on purpose.</strong> A Q4 GGUF is what people run under llama.cpp and an FP8 one does not exist. On a bandwidth-bound box this dominates single-stream decode — every token streams the entire weight set, so at GB10&#39;s ~273 GB/s the 16.7 GB quant has a ceiling near 16 t/s where the FP8 checkpoint sits near 9. llama.cpp leading single-stream is arithmetic, not engine quality, and the original post is careful about this too.</p>
+<p><strong>Speculative Decoding on for exactly one of them.</strong> NEXTN roughly doubles SGLang&#39;s single-stream decode and it is the configuration you would actually serve, so it ships on. That makes the SGLang column not-comparable to the vLLM one as shipped; the recipe README documents the four lines to delete for the strictly matched run.</p>
+<p><strong><code>benchmark.tokenizer</code> is the confusing hidden detail.</strong> llama-benchy builds depth prompts by tokenizing, and resolves a tokenizer from the served model name. <code>qwen3.8-27b</code> is not a Hugging Face id, so it falls back to GPT-2. Nothing errors, you get a full results table, and &quot;32768 tokens deep&quot; now means a different quantity of text in each run. It&#39;s not really needed for vllm and sglang because they use the Hugging Face id (sparkrun would infer it); however, for llama.cpp, it would be a failure point where the GGUF repo carries no HF tokenizer at all. We add the line to all the recipes to keep them aligned with each other. It&#39;s not a bad practice anyway to be explicit about inputs.</p>
+<h3>The one value we had to derive rather than copy</h3>
+<p>sparkrun already translates the cross-runtime <code>max_model_len</code> key to llama.cpp&#39;s <code>--ctx-size</code>, so all three recipes spell it the same way. They do not <em>mean</em> the same thing, and no amount of translation can fix that: in llama-server <code>--ctx-size</code> is the total context divided evenly across <code>--parallel</code> slots, where vLLM&#39;s <code>--max-model-len</code> is a per-request limit independent of concurrency.</p>
+<p>So the profile&#39;s deepest cell — depth 32768 at concurrency 10 — needs each of ten slots to hold about 32768 + 2048 + 128 ≈ 34,944 tokens. Hence <code>parallel: 10</code> and <code>max_model_len: 409600</code>, which have to move together: raise one alone and you fail either the deep cells or the concurrent ones.</p>
+<p>The original post never hit this and could not have, because its llama.cpp leg was measured with <code>llama-bench</code>, which has no concurrency dimension at all. That makes this the one number in the set that is derived rather than transcribed, and correspondingly the one most likely to be wrong. Before pointing <code>--arena</code> at the llama.cpp recipe, redo it — the Spark Arena profile reaches deeper, and at ten slots that is roughly 1.3M total context.</p>
+<p>The KV bill is affordable for an architectural reason the original post explains well: only 16 of Qwen3.8-27B&#39;s 64 layers are full attention, the rest are Gated DeltaNet with constant-size state, so KV grows at roughly a quarter of the rate a conventional 64-layer model&#39;s would. That same property is why decode is nearly flat in context depth — 8.2 t/s at depth 0 against 7.9 t/s at 32K on vLLM FP8.</p>
+<h2>Contributing Benchmarks</h2>
+<p><a href="https://spark-arena.com" target="_blank" rel="noopener noreferrer">Spark Arena</a> is a public leaderboard for DGX Spark inference benchmarks. It is free to use, and you can submit results from any DGX Spark setup. The idea is to share recipes and performance results (and more kinds of results soon) with the community, and to make it easy for people to reproduce them. It&#39;s a huge help to everyone to know what works and what doesn&#39;t, and to have a place to compare results across different configurations.</p>
+<p>The general process for a <a href="https://spark-arena.com" target="_blank" rel="noopener noreferrer">Spark Arena</a> leaderboard submission rather than a reproduction is:</p>
+<pre><code class="language-bash">sparkrun arena login
+sparkrun benchmark perf @community/blog-qwen3.8-27b-fp8-vllm-dbsci --arena</code></pre>
+<p>Using <code>--arena</code> means that it does the standardized benchmark and uploads the results to the Spark Arena leaderboard.</p>
+<p>To sign up for a free account, goto: https://spark-arena.com/join. By the way, we require accounts because the Internet isn&#39;t really the safest place. We tried open submissions, and it didn&#39;t work out so great... So we require accounts to keep the leaderboard honest and useful.</p>
+<p>Also, quick note: these benchmarks can take time depending on the model, benchmark, and hardware. Be prepared for that. To try to make that a little better, sparkrun decomposes the benchmark work into smaller blocks to enable resumable runs, so if you have to stop or if you have a hardware failure, you can resume the benchmark from where it left off.</p>
+<h2>Links</h2>
+<ul><li>Original post: <a href="https://blog.kubesimplify.com/qwen3-8-27b-on-dgx-spark" target="_blank" rel="noopener noreferrer">Running Qwen3.8-27B on DGX Spark</a> by Saiyam Pathak</li><li>Recipes: <a href="https://github.com/spark-arena/community-recipe-registry/tree/main/recipes/blog-qwen3.8-27b/dbsci" target="_blank" rel="noopener noreferrer">&lt;code&gt;recipes/blog-qwen3.8-27b/dbsci/&lt;/code&gt;</a></li><li><a href="https://sparkrun.dev" target="_blank" rel="noopener noreferrer">sparkrun</a></li><li><a href="https://spark-arena.com" target="_blank" rel="noopener noreferrer">Spark Arena</a></li></ul>
+    </article>
+    <div class="footer">Spark Arena community technical writing</div>
+  </main>
+</body>
+</html>
