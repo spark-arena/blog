@@ -12,7 +12,7 @@ description: How OCI Relay avoids full image archives, reuses layers across Dock
 
 # Moving fewer bytes: how OCI Relay speeds up Sparkrun image distribution
 
-*Updated October 7, 2026 for [OCI Relay v0.1.2](https://github.com/scitrera/oci-relay/releases/tag/v0.1.2)
+*Updated October 7, 2026 for [OCI Relay v0.1.2](https://github.com/spark-arena/oci-relay/releases/tag/v0.1.2)
 and Sparkrun's `develop-next` integration.*
 
 A fast network does not automatically make a large container image quick to
@@ -21,7 +21,7 @@ download, unpack, reconstruct, or compress layers. After the last byte arrives,
 Docker still has to finish importing them. On a cluster running large inference
 images, those steps can take much longer than the network transfer itself.
 
-[OCI Relay](https://github.com/scitrera/oci-relay) is our answer to that problem
+[OCI Relay](https://github.com/spark-arena/oci-relay) is our answer to that problem
 in Sparkrun. It distributes images from local Docker stores or remote registries,
 checks what each destination already has, and transfers the missing layers through
 verified, bounded streams. The Sparkrun plugin coordinates the operation; a Go
@@ -143,7 +143,7 @@ the controller already has an older copy. That last case closed a visible gap:
 a preliminary Docker refresh could previously run for a minute or two before
 the relay started reporting progress. Existing versioned local images and
 unforced delegated-source copies retain Sparkrun's established local-image
-policy, and offline operations stay offline. The [registry-source guide](https://github.com/scitrera/oci-relay/blob/main/docs/registry-source.md)
+policy, and offline operations stay offline. The [registry-source guide](https://github.com/spark-arena/oci-relay/blob/main/docs/registry-source.md)
 describes the selection rules and the limited cached-image fallback when a
 best-effort refresh cannot resolve registry metadata before transfer begins.
 
@@ -215,7 +215,7 @@ layer representations. The image configuration, layer order, and DiffIDs remain
 unchanged, while the installed manifest digest may differ from the source's.
 Both manifest identities are reported. This supports single-platform tagged
 image installation; it does not preserve signatures or referrers attached to a
-manifest that has been rewritten. The [storage compatibility guide](https://github.com/scitrera/oci-relay/blob/main/docs/storage-compatibility.md)
+manifest that has been rewritten. The [storage compatibility guide](https://github.com/spark-arena/oci-relay/blob/main/docs/storage-compatibility.md)
 documents those boundaries.
 
 Sharing source work provides another benefit. Receivers requesting the same
@@ -245,7 +245,7 @@ streams without retention and may be downloaded again for a straggler. That
 explains why registry download bytes can exceed the bytes one receiver needs.
 Memory buffers, this disk budget, optional decoder scratch space, Docker's own
 storage, and the operating system's page cache are separate. A configured relay
-buffer limit is not a limit on total process memory. The [registry cache guide](https://github.com/scitrera/oci-relay/blob/main/docs/registry-source.md)
+buffer limit is not a limit on total process memory. The [registry cache guide](https://github.com/spark-arena/oci-relay/blob/main/docs/registry-source.md)
 details the limits and counters.
 
 The implementation reuses small, useful upstream components: Dragonfly's rolling
@@ -253,7 +253,7 @@ statistics and adapted OCI reference handling, Moby's Engine client, upstream
 tar-split, and a backpressure semaphore that limits concurrent layer acquisitions.
 Nydus informed parts of the design, but OCI Relay does not install a new
 filesystem or snapshotter.
-[Third-party notices](https://github.com/scitrera/oci-relay/blob/main/THIRD_PARTY_NOTICES.md) describe the code reuse.
+[Third-party notices](https://github.com/spark-arena/oci-relay/blob/main/THIRD_PARTY_NOTICES.md) describe the code reuse.
 
 Transfer concurrency also improves on a single archive stream per destination.
 Independent missing layers can move concurrently over authenticated HTTP/2.
@@ -292,8 +292,8 @@ Striping requires at least two qualified connections. The stripe limit does
 not create them: configure multiple data paths or increase
 `connections_per_path` on one path. Small layers and single-connection routes
 use ordinary streams. Failed acquisitions retry whole layers; piece-level
-resume and RDMA transport are not implemented. See the [multi-link and striping configuration](https://github.com/scitrera/oci-relay/blob/main/docs/sparkrun-plugin.md)
-and [upstream range settings](https://github.com/scitrera/oci-relay/blob/main/docs/registry-source.md#parallel-upstream-ranges).
+resume and RDMA transport are not implemented. See the [multi-link and striping configuration](https://github.com/spark-arena/oci-relay/blob/main/docs/sparkrun-plugin.md)
+and [upstream range settings](https://github.com/spark-arena/oci-relay/blob/main/docs/registry-source.md#parallel-upstream-ranges).
 
 The plugin sizes initial concurrency and buffer budgets from network hints,
 CPU, and available memory. Qualified direct routes at 100 Gbps or above target
@@ -340,7 +340,7 @@ with a four-layer, roughly 1 GiB workload. Across 32 trials, relay elapsed time
 was 23–53% lower for empty destinations and 49–70% lower with three layers cached.
 Every partial-cache trial transferred only the missing layer, including transfers
 between different stores. These are workload-specific measurements; small
-transfers can lose time to discovery and setup. The [validation record](https://github.com/scitrera/oci-relay/blob/main/docs/validation.md)
+transfers can lose time to discovery and setup. The [validation record](https://github.com/spark-arena/oci-relay/blob/main/docs/validation.md)
 records the tested scope and results.
 
 The large-image tests also showed why network speed alone is an incomplete
@@ -364,7 +364,7 @@ shared verification barrier waits for the pipeline to finish before publishing
 a retained cache entry or completing the source stream. This removes a duplicate
 pass over the same bytes; it does not remove the independent receiver check.
 Standalone registry fetches still hash their input, disk replays are verified,
-and native tar reconstruction retains its CRC checks. The [source I/O guide](https://github.com/scitrera/oci-relay/blob/main/docs/source-selection.md#bulk-reads-and-source-pipelining)
+and native tar reconstruction retains its CRC checks. The [source I/O guide](https://github.com/spark-arena/oci-relay/blob/main/docs/source-selection.md#bulk-reads-and-source-pipelining)
 explains the pipeline and direct-read fallback.
 
 Docker import remains a separate cost. On qualified classic `overlay2`
@@ -374,7 +374,7 @@ installing a system helper or reconfiguring the daemon. It verifies both the
 compressed blob digest and the uncompressed DiffID, and needs temporary disk
 space: the plugin's raw-layer scratch cap defaults to 64 GiB and is reduced by
 free-space checks that also account for Docker's import needs. It does not
-eliminate filesystem extraction or registration. See the [bundled decoder guide](https://github.com/scitrera/oci-relay/blob/main/docs/bundled-decoder.md)
+eliminate filesystem extraction or registration. See the [bundled decoder guide](https://github.com/spark-arena/oci-relay/blob/main/docs/bundled-decoder.md)
 for eligibility, space limits, and fallback behavior.
 
 Integrity checks stay enabled throughout these optimizations. Transferred blobs
@@ -399,8 +399,8 @@ stable, with explicit feature overrides available. Native store support currentl
 requires qualified rootful Linux Docker 29+ classic `overlay2` or containerd
 `overlayfs` configurations. The real-engine matrix covers classic Docker
 29.1.3/29.2.1 and containerd Docker 29.2.1; accepting a newer version still requires
-the layout and integrity checks to pass. See the [plugin guide](https://github.com/scitrera/oci-relay/blob/main/docs/sparkrun-plugin.md)
-for configuration and the [development guide](https://github.com/scitrera/oci-relay/blob/main/docs/development.md) for an editable
+the layout and integrity checks to pass. See the [plugin guide](https://github.com/spark-arena/oci-relay/blob/main/docs/sparkrun-plugin.md)
+for configuration and the [development guide](https://github.com/spark-arena/oci-relay/blob/main/docs/development.md) for an editable
 `source dev.sh` setup.
 
 For Sparkrun, the useful change is visible during everyday iteration: updating
